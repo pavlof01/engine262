@@ -248,7 +248,7 @@ export class Agent {
     }
     return {
       breakpointId: this.#breakpointId.toString(),
-      locations: [getBreakpointCandidates({ scriptId, lineNumber: breakpoint.lineNumber, columnNumber: breakpoint.columnNumber })[0]],
+      locations: getBreakpointCandidates({ scriptId, lineNumber: breakpoint.lineNumber, columnNumber: breakpoint.columnNumber }),
     };
   }
 

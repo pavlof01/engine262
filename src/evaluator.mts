@@ -317,7 +317,8 @@ export function getBreakpointCandidates(from: BreakpointLocation, to?: Breakpoin
     return [];
   }
   const nodes = [...yieldAllNodesIntersectWithRange(node, from, to)];
-  return nodes.map((node): BreakpointLocation => ({ scriptId, lineNumber: node.location.start.line - 1, columnNumber: node.location.start.column - 1 }));
+  const locations = nodes.map((node): BreakpointLocation => ({ scriptId, lineNumber: node.location.start.line - 1, columnNumber: node.location.start.column - 1 }));
+  return locations;
 }
 
 function* yieldAllNodesIntersectWithRange(node: ParseNode, from: BreakpointLocation, to: BreakpointLocation | undefined): Generator<ParseNode> {

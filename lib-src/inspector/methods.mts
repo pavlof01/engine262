@@ -16,6 +16,7 @@ import {
   Assert,
   kInternal,
   captureStack,
+  getBreakpointCandidates,
 } from '#self';
 
 export const Debugger: DebuggerNamespace = {
@@ -35,10 +36,8 @@ export const Debugger: DebuggerNamespace = {
   setBlackboxExecutionContexts() { },
 
   // #region breakpoints
-  getPossibleBreakpoints() {
-  // getPossibleBreakpoints({ start, end, restrictToFunction }) {
-    return { locations: [] };
-    // return { locations: getBreakpointCandidates(start, end, restrictToFunction) };
+  getPossibleBreakpoints({ start, end, restrictToFunction }) {
+    return { locations: getBreakpointCandidates(start, end, restrictToFunction) };
   },
   removeBreakpoint({ breakpointId }) {
     surroundingAgent?.removeBreakpoint(breakpointId);
