@@ -38,8 +38,8 @@ export function isTemporalPlainYearMonthObject(o: Value): o is TemporalPlainYear
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-iso-year-month-records */
 export interface ISOYearMonthRecord {
-  readonly Year: number;
-  readonly Month: number;
+  readonly Year: bigint;
+  readonly Month: bigint;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plainyearmonth */
@@ -55,8 +55,8 @@ function* PlainYearMonthConstructor([
   if (referenceISODay instanceof UndefinedValue) {
     referenceISODay = F(1);
   }
-  const y = Q(yield* ToIntegerWithTruncation(isoYear));
-  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
+  const y = BigInt(Q(yield* ToIntegerWithTruncation(isoYear)));
+  const m = BigInt(Q(yield* ToIntegerWithTruncation(isoMonth)));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }
@@ -64,7 +64,7 @@ function* PlainYearMonthConstructor([
     return Throw.TypeError('calendar is not a string');
   }
   const calendar = Q(CanonicalizeCalendar(_calendar.stringValue()));
-  const ref = Q(yield* ToIntegerWithTruncation(referenceISODay));
+  const ref = BigInt(Q(yield* ToIntegerWithTruncation(referenceISODay)));
   if (!IsValidISODate(y, m, ref)) {
     return Throw.RangeError('$1-$2-$3 is not a valid date', y, m, ref);
   }
@@ -81,7 +81,7 @@ function* PlainYearMonth_from([item = Value.undefined, options = Value.undefined
 function* PlainYearMonth_compare([_one = Value.undefined, _two = Value.undefined]: Arguments): ValueEvaluator {
   const one = Q(yield* ToTemporalYearMonth(_one));
   const two = Q(yield* ToTemporalYearMonth(_two));
-  return F(CompareISODate(one.ISODate, two.ISODate));
+  return F(Number(CompareISODate(one.ISODate, two.ISODate)));
 }
 
 export function bootstrapTemporalPlainYearMonth(realmRec: Realm) {

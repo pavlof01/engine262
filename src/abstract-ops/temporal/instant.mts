@@ -12,7 +12,7 @@ import {
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#eqn-nsPerDay */
-export const nsPerDay = 8.64e13;
+export const nsPerDay = BigInt(8.64e13);
 /** https://tc39.es/proposal-temporal/#eqn-nsMaxInstant */
 export const nsMaxInstant = BigInt(8.64e21);
 /** https://tc39.es/proposal-temporal/#eqn-nsMinInstant */
@@ -59,7 +59,7 @@ export function* ToTemporalInstant(item: Value): ValueEvaluator<TemporalInstantO
     Assert((a || b) && !(a && b));
   }
   const OffsetString = parsed.TimeZone.OffsetString!;
-  const offsetNanoseconds = parsed.TimeZone.Z ? 0 : X(ParseDateTimeUTCOffset(OffsetString));
+  const offsetNanoseconds = parsed.TimeZone.Z ? 0n : X(ParseDateTimeUTCOffset(OffsetString));
   const time = parsed.Time;
   Assert(time !== 'start-of-day');
   const balanced = BalanceISODateTime(parsed.Year!, parsed.Month, parsed.Day, time.Hour, time.Minute, time.Second, time.Millisecond, time.Microsecond, time.Nanosecond - offsetNanoseconds);
@@ -95,7 +95,7 @@ export function AddInstant(epochNanoseconds: bigint, timeDuration: TimeDuration)
 export function DifferenceInstant(
   ns1: bigint,
   ns2: bigint,
-  roundingIncrement: number,
+  roundingIncrement: bigint,
   smallestUnit: TimeUnit,
   roundingMode: RoundingMode,
 ): InternalDurationRecord {
@@ -104,16 +104,16 @@ export function DifferenceInstant(
   return CombineDateAndTimeDuration(ZeroDateDuration(), timeDuration);
 }
 
-/** https://tc39.es/proposal-temporal/#sec-temporal-roundtemporalinstant */
-export function RoundTemporalInstant(
-  ns: bigint,
-  increment: number,
+/** https://tc39.es/ecma262/pr/3759/#sec-roundepochnanoseconds */
+export function RoundEpochNanoseconds(
+  epochNanoseconds: bigint,
+  increment: bigint,
   unit: TimeUnit,
   roundingMode: RoundingMode,
 ): bigint {
   const unitLength = Table21_LengthInNanoSeconds[unit];
   const incrementNs = increment * unitLength;
-  return BigInt(RoundNumberToIncrementAsIfPositive(Number(ns), incrementNs, roundingMode));
+  return BigInt(RoundNumberToIncrementAsIfPositive(Number(epochNanoseconds), incrementNs, roundingMode));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-temporalinstant-tostring */

@@ -7,7 +7,7 @@ import {
   type TimeZoneIdentifier, GetUTCEpochNanoseconds, RoundingMode,
 } from './addition.mts';
 import {
-  type PlainCompletion, Assert, Q, GetStartOfDay, GetEpochNanosecondsFor, CheckISODaysRange, IsValidEpochNanoseconds, Throw, GetPossibleEpochNanoseconds, RoundNumberToIncrement, DisambiguatePossibleEpochNanoseconds, Value, type ValueEvaluator, type CalendarType, ObjectValue, GetTemporalDisambiguationOption, GetTemporalOffsetOption, GetTemporalOverflowOption, X, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, ToTemporalTimeZoneIdentifier, CanonicalizeCalendar, CreateISODateRecord, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, RoundTemporalInstant, TemporalUnit, GetOffsetNanosecondsFor, GetISODateTimeFor, FormatDateTimeUTCOffsetRounded, FormatCalendarAnnotation, type InternalDurationRecord, DateDurationSign, AddInstant, CalendarDateAdd, CombineDateAndTimeDuration, ZeroDateDuration, type TimeDuration, CompareISODate, TimeDurationFromEpochNanosecondsDifference, TimeDurationSign, AddDaysToISODate, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, TemporalUnitCategory, DifferenceInstant, type TimeUnit, RoundRelativeDuration, TotalTimeDuration, TotalRelativeDuration, CalendarEquals, GetDifferenceSettings, TemporalDurationFromInternal, CreateNegatedTemporalDuration, TimeZoneEquals, CreateTemporalDuration, ToTemporalDuration, ToInternalDurationRecord,
+  type PlainCompletion, Assert, Q, GetStartOfDay, GetEpochNanosecondsFor, CheckISODaysRange, IsValidEpochNanoseconds, Throw, GetPossibleEpochNanoseconds, RoundNumberToIncrement, DisambiguatePossibleEpochNanoseconds, Value, type ValueEvaluator, type CalendarType, ObjectValue, GetTemporalDisambiguationOption, GetTemporalOffsetOption, GetTemporalOverflowOption, X, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, ToTemporalTimeZoneIdentifier, CanonicalizeCalendar, CreateISODateRecord, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, RoundEpochNanoseconds, TemporalUnit, GetOffsetNanosecondsFor, GetISODateTimeFor, FormatDateTimeUTCOffsetRounded, FormatCalendarAnnotation, type InternalDurationRecord, DateDurationSign, AddInstant, CalendarDateAdd, CombineDateAndTimeDuration, ZeroDateDuration, type TimeDuration, CompareISODate, TimeDurationFromEpochNanosecondsDifference, TimeDurationSign, AddDaysToISODate, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, TemporalUnitCategory, DifferenceInstant, type TimeUnit, RoundRelativeDuration, TotalTimeDuration, TotalRelativeDuration, CalendarEquals, GetDifferenceSettings, TemporalDurationFromInternal, CreateNegatedTemporalDuration, TimeZoneEquals, CreateTemporalDuration, ToTemporalDuration, ToInternalDurationRecord,
   BalanceISODateTime,
   CombineISODateAndTimeRecord,
   DifferenceTime,
@@ -25,7 +25,7 @@ export function InterpretISODateTimeOffset(
   isoDate: ISODateRecord,
   time: TimeRecord | 'start-of-day',
   offsetBehaviour: ISODateTimeOffsetBehaviour,
-  offsetNanoseconds: number,
+  offsetNanoseconds: bigint,
   timeZone: TimeZoneIdentifier,
   disambiguation: 'earlier' | 'later' | 'compatible' | 'reject',
   offsetOption: 'ignore' | 'use' | 'prefer' | 'reject',
@@ -33,7 +33,7 @@ export function InterpretISODateTimeOffset(
 ): PlainCompletion<bigint> {
   if (time === 'start-of-day') {
     Assert(offsetBehaviour === 'wall');
-    Assert(offsetNanoseconds === 0);
+    Assert(offsetNanoseconds === 0n);
     return Q(GetStartOfDay(timeZone, isoDate));
   }
   const isoDateTime = CombineISODateAndTimeRecord(isoDate, time);
@@ -56,11 +56,11 @@ export function InterpretISODateTimeOffset(
   const possibleEpochNs = Q(GetPossibleEpochNanoseconds(timeZone, isoDateTime));
   for (const candidate of possibleEpochNs) {
     const candidateOffset = utcEpochNanoseconds - candidate;
-    if (candidateOffset === BigInt(offsetNanoseconds)) {
+    if (candidateOffset === offsetNanoseconds) {
       return candidate;
     }
     if (matchBehaviour === 'match-minutes') {
-      const roundedCandidateNanoseconds = RoundNumberToIncrement(Number(candidateOffset), 60 * 1e9, RoundingMode.HalfExpand);
+      const roundedCandidateNanoseconds = RoundNumberToIncrement(Number(candidateOffset), BigInt(60 * 1e9), RoundingMode.HalfExpand);
       if (roundedCandidateNanoseconds === offsetNanoseconds) {
         return candidate;
       }
@@ -144,7 +144,7 @@ export function* ToTemporalZonedDateTime(
   } else {
     offsetBehaviour = 'option';
   }
-  let offsetNanoseconds = 0;
+  let offsetNanoseconds = 0n;
   if (offsetBehaviour === 'option') {
     offsetNanoseconds = X(ParseDateTimeUTCOffset(offsetString!));
   }
@@ -182,12 +182,12 @@ export function TemporalZonedDateTimeToString(
   showCalendar: 'auto' | 'always' | 'never' | 'critical',
   showTimeZone: 'auto' | 'never' | 'critical',
   showOffset: 'auto' | 'never',
-  increment = 1,
+  increment = 1n,
   unit: TemporalUnit.Minute | TemporalUnit.Second | TemporalUnit.Millisecond | TemporalUnit.Microsecond | TemporalUnit.Nanosecond = TemporalUnit.Nanosecond,
   roundingMode = RoundingMode.Trunc,
 ): string {
   let epochNs = zonedDateTime.EpochNanoseconds;
-  epochNs = RoundTemporalInstant(epochNs, increment, unit, roundingMode);
+  epochNs = RoundEpochNanoseconds(epochNs, increment, unit, roundingMode);
   const timeZone = zonedDateTime.TimeZone;
   const offsetNanoseconds = GetOffsetNanosecondsFor(timeZone, epochNs);
   const isoDateTime = GetISODateTimeFor(timeZone, epochNs);
@@ -212,7 +212,7 @@ export function AddZonedDateTime(
   duration: InternalDurationRecord,
   overflow: 'constrain' | 'reject',
 ): PlainCompletion<bigint> {
-  if (DateDurationSign(duration.Date) === 0) {
+  if (DateDurationSign(duration.Date) === 0n) {
     return AddInstant(epochNanoseconds, duration.Time);
   }
   const isoDateTime = GetISODateTimeFor(timeZone, epochNanoseconds);
@@ -234,19 +234,19 @@ export function DifferenceZonedDateTime(
   largestUnit: TemporalUnit,
 ): PlainCompletion<InternalDurationRecord> {
   if (ns1 === ns2) {
-    return CombineDateAndTimeDuration(ZeroDateDuration(), 0 as TimeDuration);
+    return CombineDateAndTimeDuration(ZeroDateDuration(), 0n as TimeDuration);
   }
   const startDateTime = GetISODateTimeFor(timeZone, ns1);
   const endDateTime = GetISODateTimeFor(timeZone, ns2);
-  if (CompareISODate(startDateTime.ISODate, endDateTime.ISODate) === 0) {
+  if (CompareISODate(startDateTime.ISODate, endDateTime.ISODate) === 0n) {
     const timeDuration = TimeDurationFromEpochNanosecondsDifference(ns2, ns1);
     return CombineDateAndTimeDuration(ZeroDateDuration(), timeDuration);
   }
-  const sign = ns2 - ns1 < 0 ? 1 : -1;
-  const maxDayCorrection = sign === -1 ? 2 : 1;
-  let dayCorrection = 0;
+  const sign = ns2 - ns1 < 0n ? 1n : -1n;
+  const maxDayCorrection = sign === -1n ? 2n : 1n;
+  let dayCorrection = 0n;
   let timeDuration = DifferenceTime(startDateTime.Time, endDateTime.Time);
-  if (TimeDurationSign(timeDuration) === sign) dayCorrection += 1;
+  if (TimeDurationSign(timeDuration) === sign) dayCorrection += 1n;
   let success = false;
   let intermediateDateTime;
   while (dayCorrection <= maxDayCorrection && !success) {
@@ -258,7 +258,7 @@ export function DifferenceZonedDateTime(
     if (sign !== timeSign) {
       success = true;
     }
-    dayCorrection += 1;
+    dayCorrection += 1n;
   }
   Assert(success);
   const dateLargestUnit = LargerOfTwoTemporalUnits(largestUnit, TemporalUnit.Day);
@@ -273,7 +273,7 @@ export function DifferenceZonedDateTimeWithRounding(
   timeZone: TimeZoneIdentifier,
   calendar: CalendarType,
   largestUnit: TemporalUnit,
-  roundingIncrement: number,
+  roundingIncrement: bigint,
   smallestUnit: TemporalUnit,
   roundingMode: RoundingMode,
 ): PlainCompletion<InternalDurationRecord> {
@@ -281,7 +281,7 @@ export function DifferenceZonedDateTimeWithRounding(
     return DifferenceInstant(ns1, ns2, roundingIncrement, smallestUnit as TimeUnit, roundingMode);
   }
   const difference = Q(DifferenceZonedDateTime(ns1, ns2, timeZone, calendar, largestUnit));
-  if (smallestUnit === TemporalUnit.Nanosecond && roundingIncrement === 1) {
+  if (smallestUnit === TemporalUnit.Nanosecond && roundingIncrement === 1n) {
     return difference;
   }
   const dateTime = GetISODateTimeFor(timeZone, ns1);
@@ -330,7 +330,7 @@ export function* DifferenceTemporalZonedDateTime(
     return Throw.RangeError('Time zones are not equal');
   }
   if (zonedDateTime.EpochNanoseconds === other.EpochNanoseconds) {
-    return X(CreateTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    return X(CreateTemporalDuration(0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n));
   }
   const internalDuration = Q(DifferenceZonedDateTimeWithRounding(
     zonedDateTime.EpochNanoseconds,

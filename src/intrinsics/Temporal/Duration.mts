@@ -26,16 +26,16 @@ import {
 /** https://tc39.es/proposal-temporal/#sec-properties-of-temporal-duration-instances */
 export interface TemporalDurationObject extends OrdinaryObject {
   readonly InitializedTemporalDuration: never;
-  readonly Years: number;
-  readonly Months: number;
-  readonly Weeks: number;
-  readonly Days: number;
-  readonly Hours: number;
-  readonly Minutes: number;
-  readonly Seconds: number;
-  readonly Milliseconds: number;
-  readonly Microseconds: number;
-  readonly Nanoseconds: number;
+  readonly Years: bigint;
+  readonly Months: bigint;
+  readonly Weeks: bigint;
+  readonly Days: bigint;
+  readonly Hours: bigint;
+  readonly Minutes: bigint;
+  readonly Seconds: bigint;
+  readonly Milliseconds: bigint;
+  readonly Microseconds: bigint;
+  readonly Nanoseconds: bigint;
 }
 
 export function isTemporalDurationObject(item: Value): item is TemporalDurationObject {
@@ -68,7 +68,7 @@ function* DurationConstructor([
   const ms = milliseconds instanceof UndefinedValue ? 0 : Q(yield* ToIntegerIfIntegral(milliseconds));
   const mis = microseconds instanceof UndefinedValue ? 0 : Q(yield* ToIntegerIfIntegral(microseconds));
   const ns = nanoseconds instanceof UndefinedValue ? 0 : Q(yield* ToIntegerIfIntegral(nanoseconds));
-  return Q(yield* CreateTemporalDuration(y, mo, w, d, h, m, s, ms, mis, ns, NewTarget));
+  return Q(yield* CreateTemporalDuration(BigInt(y), BigInt(mo), BigInt(w), BigInt(d), BigInt(h), BigInt(m), BigInt(s), BigInt(ms), BigInt(mis), BigInt(ns), NewTarget));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.duration.from */
@@ -110,8 +110,8 @@ function* Duration_Compare([_one = Value.undefined, _two = Value.undefined, opti
     if (after1 < after2) return F(-1);
     return F(0);
   }
-  let days1;
-  let days2;
+  let days1: bigint;
+  let days2: bigint;
   if (IsCalendarUnit(largestUnit1) || IsCalendarUnit(largestUnit2)) {
     if (plainRelativeTo === undefined) {
       return Throw.RangeError('relativeTo option is required when comparing durations with calendar units');

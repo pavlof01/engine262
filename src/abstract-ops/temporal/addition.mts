@@ -6,6 +6,7 @@ import { DateParser, ParseTimeZoneIdentifier } from '../../parser/TemporalParser
 import { HourFromTime, MinFromTime, SecFromTime } from '../date-objects.mts';
 import { R as MathematicalValue } from '../spec-types.mjs';
 import { __ts_cast__ } from '../../utils/language.mts';
+import { truncateDiv } from '../math.mts';
 import { FormatTimeString, ToIntegerWithTruncation } from './temporal.mts';
 import { FormatOffsetTimeZoneIdentifier, type TimeZoneIdentifierRecord } from './time-zone.mts';
 import { mark_TimeZoneAwareNotImplemented } from './not-implemented.mts';
@@ -21,8 +22,8 @@ import {
 
 /** https://tc39.es/proposal-temporal/#sec-year-week-record-specification-type */
 export interface YearWeekRecord {
-  readonly Week: number | undefined;
-  readonly Year: number | undefined;
+  readonly Week: bigint | undefined;
+  readonly Year: bigint | undefined;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-tointegerifintegral */
@@ -134,13 +135,13 @@ export enum UnsignedRoundingMode {
 /** https://tc39.es/proposal-temporal/#sec-getroundingincrementoption */
 export function* GetRoundingIncrementOption(
   options: ObjectValue,
-): PlainEvaluator<number> {
+): PlainEvaluator<bigint> {
   const value = Q(yield* Get(options, Value('roundingIncrement')));
   if (value === Value.undefined) {
-    return 1;
+    return 1n;
   }
-  const integerIncrement = Q(yield* ToIntegerWithTruncation(value));
-  if (integerIncrement < 1 || integerIncrement > 10 ** 9) {
+  const integerIncrement = BigInt(Q(yield* ToIntegerWithTruncation(value)));
+  if (integerIncrement < 1n || integerIncrement > 1e9) {
     return Throw.RangeError('"roundingIncrement" ($1) is out of range', integerIncrement);
   }
   return integerIncrement;
@@ -150,8 +151,8 @@ export function* GetRoundingIncrementOption(
 export function GetUTCEpochNanoseconds(
   isoDateTime: ISODateTimeRecord,
 ): bigint {
-  const date = MakeDay(Value(isoDateTime.ISODate.Year), Value(isoDateTime.ISODate.Month - 1), Value(isoDateTime.ISODate.Day));
-  const time = MakeTime(Value(isoDateTime.Time.Hour), Value(isoDateTime.Time.Minute), Value(isoDateTime.Time.Second), Value(isoDateTime.Time.Millisecond));
+  const date = MakeDay(Value(Number(isoDateTime.ISODate.Year)), Value(Number(isoDateTime.ISODate.Month - 1n)), Value(Number(isoDateTime.ISODate.Day)));
+  const time = MakeTime(isoDateTime.Time.Hour, isoDateTime.Time.Minute, isoDateTime.Time.Second, isoDateTime.Time.Millisecond);
   const ms = R(MakeDate(date, time));
   Assert(Math.floor(ms) === ms);
   return BigInt(ms) * BigInt(1e6) + BigInt(isoDateTime.Time.Microsecond) * BigInt(1e3) + BigInt(isoDateTime.Time.Nanosecond);
@@ -175,7 +176,7 @@ export function GetNamedTimeZoneEpochNanoseconds(
 export function GetNamedTimeZoneOffsetNanoseconds(timeZoneIdentifier: string, _epochNanoseconds: bigint) {
   mark_TimeZoneAwareNotImplemented();
   Assert(timeZoneIdentifier === 'UTC');
-  return 0;
+  return 0n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-systemtimezoneidentifier */
@@ -188,17 +189,17 @@ export function SystemTimeZoneIdentifier(): TimeZoneIdentifier {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-localtime */
-export function LocalTime_TemporalEdited(t: number): number {
+export function LocalTime_TemporalEdited(t: number): bigint {
   const systemTimeZoneIdentifier = SystemTimeZoneIdentifier();
   const parseResult = X(ParseTimeZoneIdentifier(systemTimeZoneIdentifier));
-  let offsetNs: number;
+  let offsetNs: bigint;
   if (parseResult.OffsetMinutes !== undefined) {
-    offsetNs = parseResult.OffsetMinutes * (60 * 1e9);
+    offsetNs = parseResult.OffsetMinutes * BigInt(60 * 1e9);
   } else {
     offsetNs = GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, BigInt(t * 1e6));
   }
-  const offsetMs = Math.trunc(offsetNs / 1e6);
-  return t + offsetMs;
+  const offsetMs = truncateDiv(offsetNs, BigInt(1e6));
+  return BigInt(t) + offsetMs;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-utc-t */
@@ -208,11 +209,12 @@ export function UTC_TemporalEdited(t: number): number {
   }
   const systemTimeZoneIdentifier = SystemTimeZoneIdentifier();
   const parseResult = X(ParseTimeZoneIdentifier(systemTimeZoneIdentifier));
-  let offsetNs: number;
+  let offsetNs: bigint;
   if (parseResult.OffsetMinutes !== undefined) {
-    offsetNs = parseResult.OffsetMinutes * (60 * 1e9);
+    offsetNs = parseResult.OffsetMinutes * (60n * BigInt(1e9));
   } else {
-    const isoDateTime = TimeValueToISODateTimeRecord(t);
+    // https://github.com/tc39/ecma262/pull/3759/changes#r3045444296
+    const isoDateTime = TimeValueToISODateTimeRecord(BigInt(Math.floor(t)));
     const possibleInstants = GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, isoDateTime);
     let disambiguatedInstant: bigint;
     if (possibleInstants.length > 0) {
@@ -223,7 +225,7 @@ export function UTC_TemporalEdited(t: number): number {
       let tBefore = Math.floor(t) - 1;
       let possibleInstantsBefore: bigint[] = [];
       while (possibleInstantsBefore.length === 0) {
-        possibleInstantsBefore = GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, TimeValueToISODateTimeRecord(tBefore));
+        possibleInstantsBefore = GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, TimeValueToISODateTimeRecord(BigInt(tBefore)));
         tBefore -= 1;
       }
       // iii. Let disambiguatedInstant be the last element of possibleInstantsBefore.
@@ -231,23 +233,24 @@ export function UTC_TemporalEdited(t: number): number {
     }
     offsetNs = GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, disambiguatedInstant);
   }
-  const offsetMs = Math.trunc(offsetNs / 1e6);
-  return t - offsetMs;
+  const offsetMs = truncateDiv(offsetNs, BigInt(1e6));
+  return t - Number(offsetMs);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-timestring */
 export function TimeString(tv: number): string {
-  const timeString = FormatTimeString(R(HourFromTime(Value(tv))), R(MinFromTime(Value(tv))), R(SecFromTime(Value(tv))), 0, 0);
+  // https://github.com/tc39/ecma262/pull/3759/changes#r3045475449
+  const timeString = FormatTimeString(HourFromTime(BigInt(Math.trunc(tv))), MinFromTime(BigInt(Math.trunc(tv))), SecFromTime(BigInt(Math.trunc(tv))), 0n, 0);
   return `${timeString} GMT`;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-timezoneestring */
-export function TimeZoneString_TemporalEdited(tv: number): string {
+export function TimeZoneString_TemporalEdited(tv: bigint): string {
   const systemTimeZoneIdentifier = SystemTimeZoneIdentifier();
   let offsetMinutes = X(ParseTimeZoneIdentifier(systemTimeZoneIdentifier)).OffsetMinutes;
   if (offsetMinutes === undefined) {
-    const offsetNs = GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, BigInt(tv * 1e6));
-    offsetMinutes = Math.trunc(offsetNs / (60 * 1e9));
+    const offsetNs = GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, tv * BigInt(1e6));
+    offsetMinutes = offsetNs / BigInt(60 * 1e9);
   }
   const offsetString = FormatOffsetTimeZoneIdentifier(offsetMinutes, 'unseparated');
   const tzName = '';
@@ -262,7 +265,7 @@ export function IsOffsetTimeZoneIdentifier(offsetString: string): boolean {
 }
 
 /** https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring */
-export function ToZeroPaddedDecimalString(n: number, minLength: number) {
+export function ToZeroPaddedDecimalString(n: bigint, minLength: number) {
   return n.toString().padStart(minLength, '0');
 }
 

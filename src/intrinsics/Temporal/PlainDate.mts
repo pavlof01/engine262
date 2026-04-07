@@ -25,9 +25,9 @@ export function isTemporalPlainDateObject(o: Value): o is TemporalPlainDateObjec
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-iso-date-records */
 export interface ISODateRecord {
-  readonly Year: number;
-  readonly Month: number;
-  readonly Day: number;
+  readonly Year: bigint;
+  readonly Month: bigint;
+  readonly Day: bigint;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plaindate */
@@ -35,9 +35,9 @@ function* PlainDateConstructor([isoYear = Value.undefined, isoMonth = Value.unde
   if (NewTarget instanceof UndefinedValue) {
     return Throw.TypeError('Temporal.PlainDate constructor cannot be called without new');
   }
-  const y = Q(yield* ToIntegerWithTruncation(isoYear));
-  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
-  const d = Q(yield* ToIntegerWithTruncation(isoDay));
+  const y = BigInt(Q(yield* ToIntegerWithTruncation(isoYear)));
+  const m = BigInt(Q(yield* ToIntegerWithTruncation(isoMonth)));
+  const d = BigInt(Q(yield* ToIntegerWithTruncation(isoDay)));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }
@@ -61,7 +61,7 @@ function* PlainDate_From([item = Value.undefined, options = Value.undefined]: Ar
 function* PlainDate_Compare([_one = Value.undefined, _two = Value.undefined]: Arguments): ValueEvaluator {
   const one = Q(yield* ToTemporalDate(_one));
   const two = Q(yield* ToTemporalDate(_two));
-  return F(CompareISODate(one.ISODate, two.ISODate));
+  return F(Number(CompareISODate(one.ISODate, two.ISODate)));
 }
 
 export function bootstrapTemporalPlainDate(realmRec: Realm) {

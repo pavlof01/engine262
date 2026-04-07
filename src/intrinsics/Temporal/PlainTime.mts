@@ -39,12 +39,12 @@ function* PlainTimeConstructor([
   if (NewTarget instanceof UndefinedValue) {
     return Throw.TypeError('Temporal.PlainTime cannot be called without new');
   }
-  const hour = _hour instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_hour));
-  const minute = _minute instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_minute));
-  const second = _second instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_second));
-  const millisecond = _millisecond instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_millisecond));
-  const microsecond = _microsecond instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_microsecond));
-  const nanosecond = _nanosecond instanceof UndefinedValue ? 0 : Q(yield* ToIntegerWithTruncation(_nanosecond));
+  const hour = _hour instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_hour)));
+  const minute = _minute instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_minute)));
+  const second = _second instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_second)));
+  const millisecond = _millisecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_millisecond)));
+  const microsecond = _microsecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_microsecond)));
+  const nanosecond = _nanosecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_nanosecond)));
   if (!IsValidTime(hour, minute, second, millisecond, microsecond, nanosecond)) {
     return Throw.RangeError('Invalid time');
   }
@@ -61,7 +61,7 @@ function* PlainTime_from([item = Value.undefined, options = Value.undefined]: Ar
 function* PlainTime_compare([_one = Value.undefined, _two = Value.undefined]: Arguments): ValueEvaluator {
   const one = Q(yield* ToTemporalTime(_one));
   const two = Q(yield* ToTemporalTime(_two));
-  return F(CompareTimeRecord(one.Time, two.Time));
+  return F(Number(CompareTimeRecord(one.Time, two.Time)));
 }
 
 export function bootstrapTemporalPlainTime(realmRec: Realm) {

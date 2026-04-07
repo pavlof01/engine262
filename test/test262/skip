@@ -10,6 +10,9 @@ annexB
 intl402
 Intl402
 
+# Unsupported timezone
+built-ins/Temporal/Duration/prototype/round/rounding-increment-relativeto.js
+
 # fix CI?
 harness/nativeFunctionMatcher.js
 

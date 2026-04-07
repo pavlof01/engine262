@@ -73,61 +73,61 @@ function thisTemporalDurationValue(value: Value): PlainCompletion<TemporalDurati
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.years */
 function DurationProto_yearsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Years);
+  return F(Number(duration.Years));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.months */
 function DurationProto_monthsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Months);
+  return F(Number(duration.Months));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.weeks */
 function DurationProto_weeksGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Weeks);
+  return F(Number(duration.Weeks));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.days */
 function DurationProto_daysGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Days);
+  return F(Number(duration.Days));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.hours */
 function DurationProto_hoursGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Hours);
+  return F(Number(duration.Hours));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.minutes */
 function DurationProto_minutesGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Minutes);
+  return F(Number(duration.Minutes));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.seconds */
 function DurationProto_secondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Seconds);
+  return F(Number(duration.Seconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.milliseconds */
 function DurationProto_millisecondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Milliseconds);
+  return F(Number(duration.Milliseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.microseconds */
 function DurationProto_microsecondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Microseconds);
+  return F(Number(duration.Microseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.nanoseconds */
 function DurationProto_nanosecondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const duration = Q(thisTemporalDurationValue(thisValue));
-  return F(duration.Nanoseconds);
+  return F(Number(duration.Nanoseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.duration.prototype.sign */
@@ -287,8 +287,8 @@ function* DurationProto_round([roundTo = Value.undefined]: Arguments, { thisValu
   if (smallestUnit === TemporalUnit.Day) {
     const fractionalDays = TotalTimeDuration(internalDuration.Time, TemporalUnit.Day);
     const days = RoundNumberToIncrement(fractionalDays, roundingIncrement, roundingMode);
-    const dateDuration = Q(CreateDateDurationRecord(0, 0, 0, days));
-    internalDuration = CombineDateAndTimeDuration(dateDuration, 0 as TimeDuration);
+    const dateDuration = Q(CreateDateDurationRecord(0n, 0n, 0n, days));
+    internalDuration = CombineDateAndTimeDuration(dateDuration, 0n as TimeDuration);
   } else {
     const timeDuration = Q(RoundTimeDuration(internalDuration.Time, roundingIncrement, smallestUnit, roundingMode));
     internalDuration = CombineDateAndTimeDuration(ZeroDateDuration(), timeDuration);
@@ -361,7 +361,7 @@ function* DurationProto_toString([options = Value.undefined]: Arguments, { thisV
 
   const precision = ToSecondsStringPrecisionRecord(smallestUnit, digits);
 
-  if (precision.Unit === TemporalUnit.Nanosecond && precision.Increment === 1) {
+  if (precision.Unit === TemporalUnit.Nanosecond && precision.Increment === 1n) {
     return Value(TemporalDurationToString(duration, precision.Precision));
   }
 

@@ -9,17 +9,17 @@ import {
   GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, type RoundingMode,
 } from './addition.mts';
 import {
-  CreateISODateRecord, R, YearFromTime, MonthFromTime, DateFromTime, CreateTimeRecord, HourFromTime, MinFromTime, SecFromTime, msFromTime, type TimeRecord, ISODateToEpochDays, nsMinInstant, nsPerDay, nsMaxInstant, type CalendarType, type CalendarFieldsRecord, type PlainEvaluator, Q, CalendarDateFromFields, RegulateTime, Value, ObjectValue, GetTemporalOverflowOption, X, GetISODateTimeFor, MidnightTimeRecord, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, Throw, CanonicalizeCalendar, BalanceTime, AddDaysToISODate, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, PadISOYear, FormatTimeString, FormatCalendarAnnotation, CompareISODate, CompareTimeRecord, type TimeUnit, TemporalUnit, Assert, RoundTime, type InternalDurationRecord, DifferenceTime, TimeDurationSign, Add24HourDaysToTimeDuration, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, CombineDateAndTimeDuration, type PlainCompletion, ZeroDateDuration, type TimeDuration, RoundRelativeDuration, TotalRelativeDuration, type ValueEvaluator, CalendarEquals, GetDifferenceSettings, CreateTemporalDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecordWith24HourDays, AddTime, AdjustDateDurationRecord, CalendarDateAdd,
+  CreateISODateRecord, YearFromTime, MonthFromTime, DateFromTime, CreateTimeRecord, HourFromTime, MinFromTime, SecFromTime, msFromTime, type TimeRecord, ISODateToEpochDays, nsMinInstant, nsPerDay, nsMaxInstant, type CalendarType, type CalendarFieldsRecord, type PlainEvaluator, Q, CalendarDateFromFields, RegulateTime, Value, ObjectValue, GetTemporalOverflowOption, X, GetISODateTimeFor, MidnightTimeRecord, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, Throw, CanonicalizeCalendar, BalanceTime, AddDaysToISODate, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, PadISOYear, FormatTimeString, FormatCalendarAnnotation, CompareISODate, CompareTimeRecord, type TimeUnit, TemporalUnit, Assert, RoundTime, type InternalDurationRecord, DifferenceTime, TimeDurationSign, Add24HourDaysToTimeDuration, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, CombineDateAndTimeDuration, type PlainCompletion, ZeroDateDuration, type TimeDuration, RoundRelativeDuration, TotalRelativeDuration, type ValueEvaluator, CalendarEquals, GetDifferenceSettings, CreateTemporalDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecordWith24HourDays, AddTime, AdjustDateDurationRecord, CalendarDateAdd,
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-timevaluetoisodatetimerecord */
-export function TimeValueToISODateTimeRecord(t: number): ISODateTimeRecord {
+export function TimeValueToISODateTimeRecord(t: bigint): ISODateTimeRecord {
   const isoDate = CreateISODateRecord(
-    R(YearFromTime(t)),
-    R(MonthFromTime(t)) + 1,
-    R(DateFromTime(t)),
+    YearFromTime(t),
+    MonthFromTime(t) + 1n,
+    DateFromTime(t),
   );
-  const time = CreateTimeRecord(R(HourFromTime(t)), R(MinFromTime(t)), R(SecFromTime(t)), R(msFromTime(t)), 0, 0);
+  const time = CreateTimeRecord(HourFromTime(t), MinFromTime(t), SecFromTime(t), msFromTime(t), 0n, 0n);
   return { ISODate: isoDate, Time: time };
 }
 
@@ -30,7 +30,7 @@ export function CombineISODateAndTimeRecord(isoDate: ISODateRecord, time: TimeRe
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isodatetimewithinlimits */
 export function ISODateTimeWithinLimits(isoDateTime: ISODateTimeRecord): boolean {
-  if (abs(ISODateToEpochDays(isoDateTime.ISODate.Year, isoDateTime.ISODate.Month - 1, isoDateTime.ISODate.Day)) > 1e8 + 1) {
+  if (abs(ISODateToEpochDays(isoDateTime.ISODate.Year, isoDateTime.ISODate.Month - 1n, isoDateTime.ISODate.Day)) > 1e8 + 1) {
     return false;
   }
   const ns = GetUTCEpochNanoseconds(isoDateTime);
@@ -92,7 +92,7 @@ export function* ToTemporalDateTime(item: Value, options: Value = Value.undefine
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-balanceisodatetime */
-export function BalanceISODateTime(year: number, month: number, day: number, hour: number, minute: number, second: number, millisecond: number, microsecond: number, nanosecond: number): ISODateTimeRecord {
+export function BalanceISODateTime(year: bigint, month: bigint, day: bigint, hour: bigint, minute: bigint, second: bigint, millisecond: bigint, microsecond: bigint, nanosecond: bigint): ISODateTimeRecord {
   const balancedTime = BalanceTime(hour, minute, second, millisecond, microsecond, nanosecond);
   const balancedDate = AddDaysToISODate(CreateISODateRecord(year, month, day), balancedTime.Days);
   return CombineISODateAndTimeRecord(balancedDate, balancedTime);
@@ -121,23 +121,23 @@ export function ISODateTimeToString(isoDateTime: ISODateTimeRecord, calendar: Ca
   const yearString = PadISOYear(isoDateTime.ISODate.Year);
   const monthString = ToZeroPaddedDecimalString(isoDateTime.ISODate.Month, 2);
   const dayString = ToZeroPaddedDecimalString(isoDateTime.ISODate.Day, 2);
-  const subSecondNanoseconds = isoDateTime.Time.Millisecond * 1e6 + isoDateTime.Time.Microsecond * 1e3 + isoDateTime.Time.Nanosecond;
+  const subSecondNanoseconds = isoDateTime.Time.Millisecond * BigInt(1e6) + isoDateTime.Time.Microsecond * BigInt(1e3) + isoDateTime.Time.Nanosecond;
   const timeString = FormatTimeString(isoDateTime.Time.Hour, isoDateTime.Time.Minute, isoDateTime.Time.Second, subSecondNanoseconds, precision);
   const calendarString = FormatCalendarAnnotation(calendar, showCalendar);
   return `${yearString}-${monthString}-${dayString}T${timeString}${calendarString}`;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-compareisodatetime */
-export function CompareISODateTime(isoDateTime1: ISODateTimeRecord, isoDateTime2: ISODateTimeRecord): 1 | -1 | 0 {
+export function CompareISODateTime(isoDateTime1: ISODateTimeRecord, isoDateTime2: ISODateTimeRecord): 1n | -1n | 0n {
   const dateResult = CompareISODate(isoDateTime1.ISODate, isoDateTime2.ISODate);
-  if (dateResult !== 0) {
+  if (dateResult !== 0n) {
     return dateResult;
   }
   return CompareTimeRecord(isoDateTime1.Time, isoDateTime2.Time);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-roundisodatetime */
-export function RoundISODateTime(isoDateTime: ISODateTimeRecord, increment: number, unit: TimeUnit | TemporalUnit.Day, roundingMode: RoundingMode): ISODateTimeRecord {
+export function RoundISODateTime(isoDateTime: ISODateTimeRecord, increment: bigint, unit: TimeUnit | TemporalUnit.Day, roundingMode: RoundingMode): ISODateTimeRecord {
   Assert(ISODateTimeWithinLimits(isoDateTime));
   const roundedTime = RoundTime(isoDateTime.Time, increment, unit, roundingMode);
   const balanceResult = AddDaysToISODate(isoDateTime.ISODate, roundedTime.Days);
@@ -160,21 +160,21 @@ export function DifferenceISODateTime(isoDateTime1: ISODateTimeRecord, isoDateTi
   const dateDifference = CalendarDateUntil(calendar, isoDateTime1.ISODate, adjustedDate, dateLargestUnit as DateUnit);
   if (largestUnit !== dateLargestUnit) {
     timeDuration = X(Add24HourDaysToTimeDuration(timeDuration, dateDifference.Days));
-    dateDifference.Days = 0;
+    dateDifference.Days = 0n;
   }
   return CombineDateAndTimeDuration(dateDifference, timeDuration);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-differenceplaindatetimewithrounding */
-export function DifferencePlainDateTimeWithRounding(isoDateTime1: ISODateTimeRecord, isoDateTime2: ISODateTimeRecord, calendar: CalendarType, largestUnit: TemporalUnit, roundingIncrement: number, smallestUnit: TemporalUnit, roundingMode: RoundingMode): PlainCompletion<InternalDurationRecord> {
-  if (CompareISODateTime(isoDateTime1, isoDateTime2) === 0) {
-    return CombineDateAndTimeDuration(ZeroDateDuration(), 0 as TimeDuration);
+export function DifferencePlainDateTimeWithRounding(isoDateTime1: ISODateTimeRecord, isoDateTime2: ISODateTimeRecord, calendar: CalendarType, largestUnit: TemporalUnit, roundingIncrement: bigint, smallestUnit: TemporalUnit, roundingMode: RoundingMode): PlainCompletion<InternalDurationRecord> {
+  if (CompareISODateTime(isoDateTime1, isoDateTime2) === 0n) {
+    return CombineDateAndTimeDuration(ZeroDateDuration(), 0n as TimeDuration);
   }
   if (!ISODateTimeWithinLimits(isoDateTime1) || !ISODateTimeWithinLimits(isoDateTime2)) {
     return Throw.RangeError('PlainDateTime outside of range');
   }
   const diff = DifferenceISODateTime(isoDateTime1, isoDateTime2, calendar, largestUnit);
-  if (smallestUnit === TemporalUnit.Nanosecond && roundingIncrement === 1) {
+  if (smallestUnit === TemporalUnit.Nanosecond && roundingIncrement === 1n) {
     return diff;
   }
   const originEpochNs = GetUTCEpochNanoseconds(isoDateTime1);
@@ -184,7 +184,7 @@ export function DifferencePlainDateTimeWithRounding(isoDateTime1: ISODateTimeRec
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-differenceplaindatetimewithtotal */
 export function DifferencePlainDateTimeWithTotal(isoDateTime1: ISODateTimeRecord, isoDateTime2: ISODateTimeRecord, calendar: CalendarType, unit: TemporalUnit): PlainCompletion<number> {
-  if (CompareISODateTime(isoDateTime1, isoDateTime2) === 0) {
+  if (CompareISODateTime(isoDateTime1, isoDateTime2) === 0n) {
     return 0;
   }
   if (!ISODateTimeWithinLimits(isoDateTime1) || !ISODateTimeWithinLimits(isoDateTime2)) {
@@ -192,7 +192,7 @@ export function DifferencePlainDateTimeWithTotal(isoDateTime1: ISODateTimeRecord
   }
   const diff = DifferenceISODateTime(isoDateTime1, isoDateTime2, calendar, unit);
   if (unit === TemporalUnit.Nanosecond) {
-    return diff.Time;
+    return Number(diff.Time);
   }
   const originEpochNs = GetUTCEpochNanoseconds(isoDateTime1);
   const destEpochNs = GetUTCEpochNanoseconds(isoDateTime2);
@@ -207,8 +207,8 @@ export function* DifferenceTemporalPlainDateTime(operation: 'since' | 'until', d
   }
   const resolvedOptions = Q(GetOptionsObject(options));
   const settings = Q(yield* GetDifferenceSettings(operation, resolvedOptions, 'datetime', [], TemporalUnit.Nanosecond, TemporalUnit.Day));
-  if (CompareISODateTime(dateTime.ISODateTime, other.ISODateTime) === 0) {
-    return X(CreateTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+  if (CompareISODateTime(dateTime.ISODateTime, other.ISODateTime) === 0n) {
+    return X(CreateTemporalDuration(0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n));
   }
   const internalDuration = Q(DifferencePlainDateTimeWithRounding(dateTime.ISODateTime, other.ISODateTime, dateTime.Calendar, settings.LargestUnit, settings.RoundingIncrement, settings.SmallestUnit, settings.RoundingMode));
   let result = X(TemporalDurationFromInternal(internalDuration, settings.LargestUnit));

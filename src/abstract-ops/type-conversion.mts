@@ -215,14 +215,7 @@ export function* ToIntegerOrInfinity(argument: Value): PlainEvaluator<number> {
   if (!number.isFinite()) {
     return R(number);
   }
-  // 4. Let integer be floor(abs(ℝ(number))).
-  let integer = Math.floor(Math.abs(R(number)));
-  // 5. If number < +0𝔽, set integer to -integer.
-  if (R(number) < 0 && integer !== 0) {
-    integer = -integer;
-  }
-  // 6. Return integer.
-  return integer;
+  return Math.trunc(R(number));
 }
 
 /** https://tc39.es/ecma262/#sec-toint32 */

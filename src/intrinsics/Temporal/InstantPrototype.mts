@@ -20,12 +20,13 @@ import {
   CreateTemporalInstant,
   DifferenceTemporalInstant,
   nsPerDay,
-  RoundTemporalInstant,
+  RoundEpochNanoseconds,
   TemporalInstantToString,
   ToTemporalInstant,
 } from '../../abstract-ops/temporal/instant.mts';
 import { CreateTemporalZonedDateTime } from '../../abstract-ops/temporal/zoned-datetime.mts';
 import { ToTemporalTimeZoneIdentifier } from '../../abstract-ops/temporal/time-zone.mts';
+import { floorDiv } from '../../abstract-ops/math.mts';
 import type { TemporalInstantObject } from './Instant.mts';
 import {
   Assert,
@@ -59,7 +60,7 @@ function thisTemporalInstantValue(value: Value): PlainCompletion<TemporalInstant
 function InstantProto_epochMillisecondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const instant = Q(thisTemporalInstantValue(thisValue));
   const ns = instant.EpochNanoseconds;
-  const ms = Math.floor(Number(ns) / 1e6);
+  const ms = floorDiv(ns, BigInt(1e6));
   return Value(ms);
 }
 
@@ -110,7 +111,7 @@ function* InstantProto_round([roundTo = Value.undefined]: Arguments, { thisValue
   const roundingMode = Q(yield* GetRoundingModeOption(roundTo, RoundingMode.HalfExpand));
   const smallestUnit = Q(yield* GetTemporalUnitValuedOption(roundTo, 'smallestUnit', 'required'));
   Q(ValidateTemporalUnitValue(smallestUnit, 'time'));
-  let maximum: number;
+  let maximum: bigint;
   if (smallestUnit === TemporalUnit.Hour) {
     maximum = HoursPerDay;
   } else if (smallestUnit === TemporalUnit.Minute) {
@@ -120,13 +121,13 @@ function* InstantProto_round([roundTo = Value.undefined]: Arguments, { thisValue
   } else if (smallestUnit === TemporalUnit.Millisecond) {
     maximum = msPerDay;
   } else if (smallestUnit === TemporalUnit.Microsecond) {
-    maximum = 1e3 * msPerDay;
+    maximum = BigInt(1e3) * msPerDay;
   } else {
     Assert(smallestUnit === TemporalUnit.Nanosecond);
     maximum = nsPerDay;
   }
   Q(ValidateTemporalRoundingIncrement(roundingIncrement, maximum, true));
-  const roundedNs = RoundTemporalInstant(instant.EpochNanoseconds, roundingIncrement, smallestUnit, roundingMode);
+  const roundedNs = RoundEpochNanoseconds(instant.EpochNanoseconds, roundingIncrement, smallestUnit, roundingMode);
   return X(CreateTemporalInstant(roundedNs));
 }
 
@@ -157,7 +158,7 @@ function* InstantProto_toString([options = Value.undefined]: Arguments, { thisVa
     smallestUnit as Exclude<TimeUnit, TemporalUnit.Hour> | 'unset',
     digits,
   );
-  const roundedNs = RoundTemporalInstant(instant.EpochNanoseconds, precision.Increment, precision.Unit, roundingMode);
+  const roundedNs = RoundEpochNanoseconds(instant.EpochNanoseconds, precision.Increment, precision.Unit, roundingMode);
   const roundedInstant = X(CreateTemporalInstant(roundedNs));
   return Value(TemporalInstantToString(roundedInstant, timeZone, precision.Precision));
 }

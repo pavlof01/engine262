@@ -3,7 +3,7 @@ import { R } from '../spec-types.mjs';
 import { type ISODateRecord, type TemporalPlainDateObject, isTemporalPlainDateObject } from '../../intrinsics/Temporal/PlainDate.mts';
 import { isTemporalPlainDateTimeObject } from '../../intrinsics/Temporal/PlainDateTime.mts';
 import { type TemporalZonedDateTimeObject, isTemporalZonedDateTimeObject } from '../../intrinsics/Temporal/ZonedDateTime.mts';
-import { modulo } from '../math.mts';
+import { abs, floorDiv, modulo } from '../math.mts';
 import {
   GetOption, GetRoundingIncrementOption, GetRoundingModeOption, GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, UnsignedRoundingMode, type TimeZoneIdentifier,
 } from './addition.mts';
@@ -19,135 +19,135 @@ import {
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-isodatetoepochdays */
-export function ISODateToEpochDays(year: number, month: number, date: number): number {
-  const resolvedYear = year + Math.floor(month / 12);
-  const resolvedMonth = modulo(month, 12);
+export function ISODateToEpochDays(year: bigint, month: bigint, date: bigint): bigint {
+  const resolvedYear = year + floorDiv(month, 12n);
+  const resolvedMonth = modulo(month, 12n);
   // Find a time t such that EpochTimeToEpochYear(t) = resolvedYear, EpochTimeToMonthInYear(t) = resolvedMonth, and EpochTimeToDate(t) = 1.
 
   // t = GetUTCEpochNanoseconds(resolvedYear, resolvedMonth + 1, date) / 1e6 - (date - 1) * msPerDay
-  const t = Number(
+  const t = (
     GetUTCEpochNanoseconds({
-      ISODate: { Year: resolvedYear, Month: resolvedMonth + 1, Day: date },
+      ISODate: { Year: resolvedYear, Month: resolvedMonth + 1n, Day: date },
       Time: {
-        Days: 0, Hour: 0, Microsecond: 0, Millisecond: 0, Minute: 0, Nanosecond: 0, Second: 0,
+        Days: 0n, Hour: 0n, Microsecond: 0n, Millisecond: 0n, Minute: 0n, Nanosecond: 0n, Second: 0n,
       },
     }) / BigInt(1e6)
-    - (BigInt(date) - 1n) * BigInt(msPerDay),
+    - (date - 1n) * msPerDay
   );
 
-  Assert(EpochTimeToEpochYear(t) === resolvedYear && EpochTimeToMonthInYear(t) === resolvedMonth && EpochTimeToDate(t) === 1);
-  return EpochTimeToDayNumber(t) + date - 1;
+  Assert(EpochTimeToEpochYear(t) === resolvedYear && EpochTimeToMonthInYear(t) === resolvedMonth && EpochTimeToDate(t) === 1n);
+  return EpochTimeToDayNumber(t) + date - 1n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochdaystoepochms */
-export function EpochDaysToEpochMs(day: number, time: number): number {
+export function EpochDaysToEpochMs(day: bigint, time: bigint): bigint {
   return day * msPerDay + time;
 }
 
 /** https://tc39.es/proposal-temporal/#eqn-EpochTimeToDayNumber */
-export function EpochTimeToDayNumber(t: number): number {
-  return Math.floor(t / msPerDay);
+export function EpochTimeToDayNumber(t: bigint): bigint {
+  return floorDiv(t, msPerDay);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-mathematicaldaysinyear */
-export function MathematicalDaysInYear(y: number): number {
-  if (modulo(y, 4) !== 0) {
-    return 365;
+export function MathematicalDaysInYear(y: bigint): bigint {
+  if (modulo(y, 4n) !== 0n) {
+    return 365n;
   }
-  if (modulo(y, 100) !== 0) {
-    return 366;
+  if (modulo(y, 100n) !== 0n) {
+    return 366n;
   }
-  if (modulo(y, 400) !== 0) {
-    return 365;
+  if (modulo(y, 400n) !== 0n) {
+    return 365n;
   }
-  return 366;
+  return 366n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochdaynumberforyear */
-export function EpochDayNumberForYear(y: number): number {
-  return 365 * (y - 1970)
-    + Math.floor((y - 1969) / 4)
-    - Math.floor((y - 1901) / 100)
-    + Math.floor((y - 1601) / 400);
+export function EpochDayNumberForYear(y: bigint): bigint {
+  return 365n * (y - 1970n)
+    + floorDiv((y - 1969n), 4n)
+    - floorDiv((y - 1901n), 100n)
+    + floorDiv((y - 1601n), 400n);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimeforyear */
-export function EpochTimeForYear(y: number): number {
+export function EpochTimeForYear(y: bigint): bigint {
   return msPerDay * EpochDayNumberForYear(y);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetoepochyear */
 // TODO(temporal): Review
-export function EpochTimeToEpochYear(t: bigint | number): number {
+export function EpochTimeToEpochYear(t: bigint | number): bigint {
   // EpochTimeToEpochYear(t) = the largest integral Number y (closest to +∞) such that EpochTimeForYear(y) ≤ t
-  let lower = -271821;
-  let upper = 275760;
+  let lower = -271821n;
+  let upper = 275760n;
   while (lower < upper) {
-    const mid = Math.floor((lower + upper + 1) / 2);
+    const mid = (lower + upper + 1n) / 2n;
     if (EpochTimeForYear(mid) <= t) {
       lower = mid;
     } else {
-      upper = mid - 1;
+      upper = mid - 1n;
     }
   }
   return lower;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-mathematicalinleapyear */
-export function MathematicalInLeapYear(t: bigint | number): number {
-  return MathematicalDaysInYear(EpochTimeToEpochYear(t)) === 366 ? 1 : 0;
+export function MathematicalInLeapYear(t: bigint | number): bigint {
+  return MathematicalDaysInYear(EpochTimeToEpochYear(t)) === 366n ? 1n : 0n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetomonthinyear */
-export function EpochTimeToMonthInYear(t: number): number {
+export function EpochTimeToMonthInYear(t: bigint): bigint {
   const dayInYear = EpochTimeToDayInYear(t);
   const leap = MathematicalInLeapYear(t);
-  if (dayInYear >= 0 && dayInYear < 31) return 0;
-  if (dayInYear >= 31 && dayInYear < 59 + leap) return 1;
-  if (59 + leap <= dayInYear && dayInYear < 90 + leap) return 2;
-  if (90 + leap <= dayInYear && dayInYear < 120 + leap) return 3;
-  if (120 + leap <= dayInYear && dayInYear < 151 + leap) return 4;
-  if (151 + leap <= dayInYear && dayInYear < 181 + leap) return 5;
-  if (181 + leap <= dayInYear && dayInYear < 212 + leap) return 6;
-  if (212 + leap <= dayInYear && dayInYear < 243 + leap) return 7;
-  if (243 + leap <= dayInYear && dayInYear < 273 + leap) return 8;
-  if (273 + leap <= dayInYear && dayInYear < 304 + leap) return 9;
-  if (304 + leap <= dayInYear && dayInYear < 334 + leap) return 10;
-  return 11;
+  if (dayInYear >= 0n && dayInYear < 31n) return 0n;
+  if (dayInYear >= 31n && dayInYear < 59n + leap) return 1n;
+  if (59n + leap <= dayInYear && dayInYear < 90n + leap) return 2n;
+  if (90n + leap <= dayInYear && dayInYear < 120n + leap) return 3n;
+  if (120n + leap <= dayInYear && dayInYear < 151n + leap) return 4n;
+  if (151n + leap <= dayInYear && dayInYear < 181n + leap) return 5n;
+  if (181n + leap <= dayInYear && dayInYear < 212n + leap) return 6n;
+  if (212n + leap <= dayInYear && dayInYear < 243n + leap) return 7n;
+  if (243n + leap <= dayInYear && dayInYear < 273n + leap) return 8n;
+  if (273n + leap <= dayInYear && dayInYear < 304n + leap) return 9n;
+  if (304n + leap <= dayInYear && dayInYear < 334n + leap) return 10n;
+  return 11n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetodayinyear */
-export function EpochTimeToDayInYear(t: number): number {
+export function EpochTimeToDayInYear(t: bigint): bigint {
   return EpochTimeToDayNumber(t) - EpochDayNumberForYear(EpochTimeToEpochYear(t));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetodate */
-export function EpochTimeToDate(t: number): number {
+export function EpochTimeToDate(t: bigint): bigint {
   const m = EpochTimeToMonthInYear(t);
   const dayInYear = EpochTimeToDayInYear(t);
-  const leap = MathematicalInLeapYear(t) ? 1 : 0;
-  if (m === 0) return dayInYear + 1;
-  if (m === 1) return dayInYear - 30;
-  if (m === 2) return dayInYear - 58 - leap;
-  if (m === 3) return dayInYear - 89 - leap;
-  if (m === 4) return dayInYear - 119 - leap;
-  if (m === 5) return dayInYear - 150 - leap;
-  if (m === 6) return dayInYear - 180 - leap;
-  if (m === 7) return dayInYear - 211 - leap;
-  if (m === 8) return dayInYear - 242 - leap;
-  if (m === 9) return dayInYear - 272 - leap;
-  if (m === 10) return dayInYear - 303 - leap;
-  return dayInYear - 333 - leap;
+  const leap = MathematicalInLeapYear(t) ? 1n : 0n;
+  if (m === 0n) return dayInYear + 1n;
+  if (m === 1n) return dayInYear - 30n;
+  if (m === 2n) return dayInYear - 58n - leap;
+  if (m === 3n) return dayInYear - 89n - leap;
+  if (m === 4n) return dayInYear - 119n - leap;
+  if (m === 5n) return dayInYear - 150n - leap;
+  if (m === 6n) return dayInYear - 180n - leap;
+  if (m === 7n) return dayInYear - 211n - leap;
+  if (m === 8n) return dayInYear - 242n - leap;
+  if (m === 9n) return dayInYear - 272n - leap;
+  if (m === 10n) return dayInYear - 303n - leap;
+  return dayInYear - 333n - leap;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetoweekday */
-export function EpochTimeToWeekDay(t: number): number {
-  return modulo(EpochTimeToDayNumber(t) + 4, 7);
+export function EpochTimeToWeekDay(t: bigint): bigint {
+  return modulo(EpochTimeToDayNumber(t) + 4n, 7n);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-checkisodaysrange */
 export function CheckISODaysRange(isoDate: ISODateRecord): PlainCompletion<void> {
-  const days = Math.abs(ISODateToEpochDays(isoDate.Year, isoDate.Month - 1, isoDate.Day));
+  const days = abs(ISODateToEpochDays(isoDate.Year, isoDate.Month - 1n, isoDate.Day));
   if (days > 1e8) {
     return Throw.RangeError('ISODate is out of range');
   }
@@ -178,13 +178,13 @@ export type DateUnit = TemporalUnit.Year | TemporalUnit.Month | TemporalUnit.Wee
 
 /** https://tc39.es/proposal-temporal/#table-temporal-units */
 export const Table21_LengthInNanoSeconds = {
-  [TemporalUnit.Day]: 8.64e13 satisfies typeof nsPerDay,
-  [TemporalUnit.Hour]: 3.6e12,
-  [TemporalUnit.Minute]: 6e10,
-  [TemporalUnit.Second]: 1e9,
-  [TemporalUnit.Millisecond]: 1e6,
-  [TemporalUnit.Microsecond]: 1e3,
-  [TemporalUnit.Nanosecond]: 1,
+  [TemporalUnit.Day]: BigInt(8.64e13) satisfies typeof nsPerDay,
+  [TemporalUnit.Hour]: BigInt(3.6e12),
+  [TemporalUnit.Minute]: BigInt(6e10),
+  [TemporalUnit.Second]: BigInt(1e9),
+  [TemporalUnit.Millisecond]: BigInt(1e6),
+  [TemporalUnit.Microsecond]: BigInt(1e3),
+  [TemporalUnit.Nanosecond]: 1n,
 } as const;
 
 export const Table21_CategoryByValue = {
@@ -284,18 +284,18 @@ export function* GetDirectionOption(options: ObjectValue): PlainEvaluator<Direct
 }
 
 /** https://tc39.es/proposal-temporal/#sec-validatetemporalroundingincrement */
-export function ValidateTemporalRoundingIncrement(increment: number, dividend: number, inclusive: boolean): PlainCompletion<void> {
+export function ValidateTemporalRoundingIncrement(increment: bigint, dividend: bigint, inclusive: boolean): PlainCompletion<void> {
   let maximum;
   if (inclusive) {
     maximum = dividend;
   } else {
-    Assert(dividend > 1);
-    maximum = dividend - 1;
+    Assert(dividend > 1n);
+    maximum = dividend - 1n;
   }
   if (increment > maximum) {
     return Throw.RangeError('$1 is out of range', increment);
   }
-  if (dividend % increment !== 0) {
+  if (modulo(dividend, increment) !== 0n) {
     return Throw.RangeError('$1 is out of range', increment);
   }
   return undefined;
@@ -325,39 +325,39 @@ export function* GetTemporalFractionalSecondDigitsOption(options: ObjectValue): 
 
 /** https://tc39.es/proposal-temporal/#sec-tosecondsstringprecisionrecord */
 export function ToSecondsStringPrecisionRecord(smallestUnit: Exclude<TimeUnit, TemporalUnit.Hour> | 'unset', fractionalDigitCount: 'auto' | number):
-  | { Precision: TemporalUnit.Minute, Unit: TemporalUnit.Minute, Increment: 1 }
-  | { Precision: number, Unit: TemporalUnit.Minute | TemporalUnit.Second | TemporalUnit.Millisecond | TemporalUnit.Microsecond | TemporalUnit.Nanosecond, Increment: number }
-  | { Precision: 'auto' | number, Unit: TemporalUnit.Nanosecond, Increment: 1 | 10 | 100 } {
+  | { Precision: TemporalUnit.Minute, Unit: TemporalUnit.Minute, Increment: 1n }
+  | { Precision: number, Unit: TemporalUnit.Minute | TemporalUnit.Second | TemporalUnit.Millisecond | TemporalUnit.Microsecond | TemporalUnit.Nanosecond, Increment: bigint }
+  | { Precision: 'auto' | number, Unit: TemporalUnit.Nanosecond, Increment: 1n | 10n | 100n } {
   if (smallestUnit === TemporalUnit.Minute) {
-    return { Precision: TemporalUnit.Minute, Unit: TemporalUnit.Minute, Increment: 1 };
+    return { Precision: TemporalUnit.Minute, Unit: TemporalUnit.Minute, Increment: 1n };
   }
   if (smallestUnit === TemporalUnit.Second) {
-    return { Precision: 0, Unit: TemporalUnit.Second, Increment: 1 };
+    return { Precision: 0, Unit: TemporalUnit.Second, Increment: 1n };
   }
   if (smallestUnit === TemporalUnit.Millisecond) {
-    return { Precision: 3, Unit: TemporalUnit.Millisecond, Increment: 1 };
+    return { Precision: 3, Unit: TemporalUnit.Millisecond, Increment: 1n };
   }
   if (smallestUnit === TemporalUnit.Microsecond) {
-    return { Precision: 6, Unit: TemporalUnit.Microsecond, Increment: 1 };
+    return { Precision: 6, Unit: TemporalUnit.Microsecond, Increment: 1n };
   }
   if (smallestUnit === TemporalUnit.Nanosecond) {
-    return { Precision: 9, Unit: TemporalUnit.Nanosecond, Increment: 1 };
+    return { Precision: 9, Unit: TemporalUnit.Nanosecond, Increment: 1n };
   }
   Assert(smallestUnit === 'unset');
   if (fractionalDigitCount === 'auto') {
-    return { Precision: 'auto', Unit: TemporalUnit.Nanosecond, Increment: 1 };
+    return { Precision: 'auto', Unit: TemporalUnit.Nanosecond, Increment: 1n };
   }
   if (fractionalDigitCount === 0) {
-    return { Precision: 0, Unit: TemporalUnit.Second, Increment: 1 };
+    return { Precision: 0, Unit: TemporalUnit.Second, Increment: 1n };
   }
   if (fractionalDigitCount >= 1 && fractionalDigitCount <= 3) {
-    return { Precision: fractionalDigitCount, Unit: TemporalUnit.Millisecond, Increment: 10 ** (3 - fractionalDigitCount) as 1 | 10 | 100 };
+    return { Precision: fractionalDigitCount, Unit: TemporalUnit.Millisecond, Increment: 10n ** BigInt(3 - fractionalDigitCount) as 1n | 10n | 100n };
   }
   if (fractionalDigitCount >= 4 && fractionalDigitCount <= 6) {
-    return { Precision: fractionalDigitCount, Unit: TemporalUnit.Microsecond, Increment: 10 ** (6 - fractionalDigitCount) as 1 | 10 | 100 };
+    return { Precision: fractionalDigitCount, Unit: TemporalUnit.Microsecond, Increment: 10n ** BigInt(6 - fractionalDigitCount) as 1n | 10n | 100n };
   }
   Assert(fractionalDigitCount >= 7 && fractionalDigitCount <= 9);
-  return { Precision: fractionalDigitCount, Unit: TemporalUnit.Nanosecond, Increment: 10 ** (9 - fractionalDigitCount) as 1 | 10 | 100 };
+  return { Precision: fractionalDigitCount, Unit: TemporalUnit.Nanosecond, Increment: 10n ** BigInt(9 - fractionalDigitCount) as 1n | 10n | 100n };
 }
 
 const table21 = [
@@ -507,7 +507,7 @@ export function* GetTemporalRelativeToOption(options: ObjectValue): PlainEvaluat
   if (offsetBehaviour === 'option') {
     offsetNs = X(ParseDateTimeUTCOffset(offsetString!));
   } else {
-    offsetNs = 0;
+    offsetNs = 0n;
   }
   const epochNanoseconds = Q(InterpretISODateTimeOffset(isoDate, time, offsetBehaviour, offsetNs, timeZone, 'compatible', 'reject', matchBehaviour));
   const zonedRelativeTo = X(CreateTemporalZonedDateTime(epochNanoseconds, timeZone, calendar));
@@ -553,14 +553,14 @@ export function TemporalUnitCategory(unit: TemporalUnit): 'date' | 'time' {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-maximumtemporaldurationroundingincrement */
-export function MaximumTemporalDurationRoundingIncrement(unit: TemporalUnit): 24 | 60 | 1000 | 'unset' {
+export function MaximumTemporalDurationRoundingIncrement(unit: TemporalUnit): 24n | 60n | 1000n | 'unset' {
   switch (unit) {
-    case TemporalUnit.Hour: return 24;
-    case TemporalUnit.Minute: return 60;
-    case TemporalUnit.Second: return 60;
-    case TemporalUnit.Millisecond: return 1000;
-    case TemporalUnit.Microsecond: return 1000;
-    case TemporalUnit.Nanosecond: return 1000;
+    case TemporalUnit.Hour: return 24n;
+    case TemporalUnit.Minute: return 60n;
+    case TemporalUnit.Second: return 60n;
+    case TemporalUnit.Millisecond: return 1000n;
+    case TemporalUnit.Microsecond: return 1000n;
+    case TemporalUnit.Nanosecond: return 1000n;
     default: return 'unset';
   }
 }
@@ -592,9 +592,9 @@ export function* IsPartialTemporalObject(value: Value): PlainEvaluator<boolean> 
 }
 
 /** https://tc39.es/proposal-temporal/#sec-formatfractionalseconds */
-export function FormatFractionalSeconds(subSecondNanoseconds: number, precision: number | 'auto'): string {
+export function FormatFractionalSeconds(subSecondNanoseconds: bigint, precision: number | 'auto'): string {
   if (precision === 'auto') {
-    if (subSecondNanoseconds === 0) {
+    if (subSecondNanoseconds === 0n) {
       return '';
     }
     let fractionString = ToZeroPaddedDecimalString(subSecondNanoseconds, 9);
@@ -613,10 +613,10 @@ export function FormatFractionalSeconds(subSecondNanoseconds: number, precision:
 
 /** https://tc39.es/proposal-temporal/#sec-formattimestring */
 export function FormatTimeString(
-  hour: number,
-  minute: number,
-  second: number,
-  subSecondNanoseconds: number,
+  hour: bigint,
+  minute: bigint,
+  second: bigint,
+  subSecondNanoseconds: bigint,
   precision: number | TemporalUnit.Minute | 'auto',
   style?: 'separated' | 'unseparated',
 ): string {
@@ -694,10 +694,10 @@ export function ApplyUnsignedRoundingMode(
 /** https://tc39.es/proposal-temporal/#sec-roundnumbertoincrement */
 export function RoundNumberToIncrement(
   x: number,
-  increment: number,
+  increment: bigint,
   roundingMode: RoundingMode,
-): number {
-  let quotient = x / increment;
+): bigint {
+  let quotient = x / Number(increment);
   let isNegative: 'negative' | 'positive';
   if (quotient < 0) {
     isNegative = 'negative';
@@ -714,23 +714,23 @@ export function RoundNumberToIncrement(
   if (isNegative === 'negative') {
     rounded = -rounded;
   }
-  return rounded * increment;
+  return BigInt(rounded) * increment;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-roundnumbertoincrementasifpositive */
 export function RoundNumberToIncrementAsIfPositive(
   x: number,
-  increment: number,
+  increment: bigint,
   roundingMode: RoundingMode,
 ): number {
-  const quotient = x / increment;
+  const quotient = x / Number(increment);
   const unsignedRoundingMode = GetUnsignedRoundingMode(roundingMode, 'positive');
   // Let r1 be the largest integer such that r1 ≤ quotient.
   const r1 = Math.floor(quotient);
   // Let r2 be the smallest integer such that r2 > quotient.
   const r2 = r1 + 1;
   const rounded = ApplyUnsignedRoundingMode(quotient, r1, r2, unsignedRoundingMode);
-  return rounded * increment;
+  return rounded * Number(increment);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-topositiveintegerwithtruncation */
@@ -838,7 +838,7 @@ export function* GetDifferenceSettings(
   SmallestUnit: TemporalUnit,
   LargestUnit: TemporalUnit,
   RoundingMode: RoundingMode,
-  RoundingIncrement: number
+  RoundingIncrement: bigint,
 }> {
   let largestUnit = Q(yield* GetTemporalUnitValuedOption(options, 'largestUnit', 'unset'));
   const roundingIncrement = Q(yield* GetRoundingIncrementOption(options));

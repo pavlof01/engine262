@@ -7,12 +7,12 @@ import {
   Assert,
   CreateTemporalDuration,
   CreateTimeRecord,
+  EnsureCompletion,
   IsValidISODate,
   JSStringValue,
   NormalCompletion,
   ObjectValue,
   Q,
-  StringToNumber,
   Throw,
   ThrowCompletion,
   ToIntegerWithTruncation,
@@ -34,9 +34,9 @@ export interface ISOStringTimeZoneParseRecord {
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-iso-date-time-parse-records */
 export interface ISODateTimeParseRecord {
-  readonly Year: number | undefined;
-  readonly Month: number;
-  readonly Day: number;
+  readonly Year: bigint | undefined;
+  readonly Month: bigint;
+  readonly Day: bigint;
   readonly Time: TimeRecord | 'start-of-day';
   readonly TimeZone: ISOStringTimeZoneParseRecord;
   readonly Calendar: string | undefined;
@@ -44,25 +44,25 @@ export interface ISODateTimeParseRecord {
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parseisodatetime */
 export function ParseISODateTime(isoString: string, allowedFormats: Array<'TemporalInstantString' | 'TemporalDateTimeString[~Zoned]' | 'TemporalTimeString' | 'TemporalMonthDayString' | 'TemporalYearMonthString' | 'TemporalDateTimeString[+Zoned]'>): PlainCompletion<ISODateTimeParseRecord> {
-  let parseResult: ObjectValue[] | undefined | RFC9557ParseNode.AnnotatedDateTime | RFC9557ParseNode.TemporalTimeString | RFC9557ParseNode.TemporalInstantString | RFC9557ParseNode.TemporalMonthDayString | RFC9557ParseNode.TemporalYearMonthString;
+  let parseResult: undefined | RFC9557ParseNode.AnnotatedDateTime | RFC9557ParseNode.TemporalTimeString | RFC9557ParseNode.TemporalInstantString | RFC9557ParseNode.TemporalMonthDayString | RFC9557ParseNode.TemporalYearMonthString;
   let calendar: string | undefined;
   let yearAbsent = false;
 
   // Note: see https://github.com/tc39/proposal-temporal/issues/3281
-  let year = 0;
-  let month: number | undefined;
-  let day: number | undefined;
-  let hour: number | undefined;
-  let minute: number | undefined;
-  let second: number | undefined;
+  let year = 0n;
+  let month: bigint | undefined;
+  let day: bigint | undefined;
+  let hour: bigint | undefined;
+  let minute: bigint | undefined;
+  let second: bigint | undefined;
   let fSeconds: RFC9557ParseNode.TemporalDecimalFraction | undefined;
   let timeZoneIdentifier: RFC9557ParseNode.TimeZoneIdentifier | undefined;
   let UTCDesignator: RFC9557ParseNode.DateTimeUTCOffset['UTCDesignator'] | undefined;
   let UTCOffset: RFC9557ParseNode.UTCOffset | undefined;
   const assignTimeSpec = (timeSpec: RFC9557ParseNode.TimeSpec) => {
-    hour = parseFloat(timeSpec.Hour);
-    minute = timeSpec.Minute ? parseFloat(timeSpec.Minute) : undefined;
-    second = timeSpec.Second ? parseFloat(timeSpec.Second) : undefined;
+    hour = timeSpec.Hour;
+    minute = timeSpec.Minute ? timeSpec.Minute : undefined;
+    second = timeSpec.Second ? timeSpec.Second : undefined;
     fSeconds = timeSpec.TemporalDecimalFraction;
   };
   const assignDateSpec = (dateSpec: RFC9557ParseNode.DateSpec) => {
@@ -76,8 +76,8 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
     UTCOffset = DateTimeUTCOffset?.UTCOffset;
   };
   for (const goal of allowedFormats) {
-    if (!parseResult || !Array.isArray(parseResult)) {
-      parseResult = DateParser.parse(
+    if (!parseResult) {
+      const result = DateParser.parse(
         isoString,
         (parser) => {
           switch (goal) {
@@ -142,82 +142,79 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
           }
         },
       );
-      if (parseResult && !Array.isArray(parseResult)) {
-        let calendarWasCritical = false;
+      if (!result || Array.isArray(result)) continue;
+      parseResult = result;
+      let calendarWasCritical = false;
 
-        // 2. For each Annotation Parse Node annotation contained within parseResult, do
-        let annotations: readonly RFC9557ParseNode.Annotation[] = [];
-        if ('Annotations' in parseResult && parseResult.Annotations) {
-          annotations = annotations.concat(parseResult.Annotations);
-        }
-        if ('AnnotatedDateTime' in parseResult && parseResult.AnnotatedDateTime?.Annotations) {
-          annotations = annotations.concat(parseResult.AnnotatedDateTime.Annotations);
-        }
-        if ('AnnotatedTime' in parseResult && parseResult.AnnotatedTime?.Annotations) {
-          annotations = annotations.concat(parseResult.AnnotatedTime.Annotations);
-        }
-        if ('AnnotatedMonthDay' in parseResult && parseResult.AnnotatedMonthDay?.Annotations) {
-          annotations = annotations.concat(parseResult.AnnotatedMonthDay.Annotations);
-        }
-        if ('AnnotatedYearMonth' in parseResult && parseResult.AnnotatedYearMonth?.Annotations) {
-          annotations = annotations.concat(parseResult.AnnotatedYearMonth.Annotations);
-        }
+      // 2. For each Annotation Parse Node annotation contained within parseResult, do
+      let annotations: readonly RFC9557ParseNode.Annotation[] = [];
+      if ('Annotations' in parseResult && parseResult.Annotations) {
+        annotations = annotations.concat(parseResult.Annotations);
+      }
+      if ('AnnotatedDateTime' in parseResult && parseResult.AnnotatedDateTime?.Annotations) {
+        annotations = annotations.concat(parseResult.AnnotatedDateTime.Annotations);
+      }
+      if ('AnnotatedTime' in parseResult && parseResult.AnnotatedTime?.Annotations) {
+        annotations = annotations.concat(parseResult.AnnotatedTime.Annotations);
+      }
+      if ('AnnotatedMonthDay' in parseResult && parseResult.AnnotatedMonthDay?.Annotations) {
+        annotations = annotations.concat(parseResult.AnnotatedMonthDay.Annotations);
+      }
+      if ('AnnotatedYearMonth' in parseResult && parseResult.AnnotatedYearMonth?.Annotations) {
+        annotations = annotations.concat(parseResult.AnnotatedYearMonth.Annotations);
+      }
 
-        for (const Annotation of annotations) {
-          const key = Annotation.AnnotationKey;
-          const value = Annotation.AnnotationValue;
-          if (key === 'u-ca') {
-            if (!calendar) {
-              calendar = value;
-              if (Annotation.CriticalFlag) calendarWasCritical = true;
-            } else {
-              if (Annotation.CriticalFlag || calendarWasCritical) return Throw.RangeError('Critical calendar annotation failed.');
-            }
+      for (const Annotation of annotations) {
+        const key = Annotation.AnnotationKey;
+        const value = Annotation.AnnotationValue;
+        if (key === 'u-ca') {
+          if (!calendar) {
+            calendar = value;
+            if (Annotation.CriticalFlag) calendarWasCritical = true;
           } else {
-            if (Annotation.CriticalFlag) return Throw.RangeError('Critical annotation "$1" failed.', key);
+            if (Annotation.CriticalFlag || calendarWasCritical) return Throw.RangeError('Critical calendar annotation failed.');
           }
-        }
-
-        // https://github.com/tc39/ecma262/pull/3759/changes#r2851037938
-        if (goal === 'TemporalYearMonthString' && (parseResult as RFC9557ParseNode.TemporalYearMonthString).AnnotatedDateTime?.DateTime.Date.Day === undefined) {
-          if (calendar !== undefined && calendar.toLowerCase() !== 'iso8601') return Throw.RangeError('Calendar annotation is not allowed when day is absent');
-        }
-
-        if (goal === 'TemporalMonthDayString' && (parseResult as RFC9557ParseNode.TemporalMonthDayString).AnnotatedDateTime?.DateTime.Date.Year === undefined) {
-          if (calendar !== undefined && calendar.toLowerCase() !== 'iso8601') return Throw.RangeError('Calendar annotation is not allowed when year is absent');
-          yearAbsent = true;
+        } else {
+          if (Annotation.CriticalFlag) return Throw.RangeError('Critical annotation "$1" failed.', key);
         }
       }
+
+      // https://github.com/tc39/ecma262/pull/3759/changes#r2851037938
+      if (goal === 'TemporalYearMonthString' && (parseResult as RFC9557ParseNode.TemporalYearMonthString).AnnotatedDateTime?.DateTime.Date.Day === undefined) {
+        if (calendar !== undefined && calendar.toLowerCase() !== 'iso8601') return Throw.RangeError('Calendar annotation is not allowed when day is absent');
+      }
+
+      if (goal === 'TemporalMonthDayString' && (parseResult as RFC9557ParseNode.TemporalMonthDayString).AnnotatedDateTime?.DateTime.Date.Year === undefined) {
+        if (calendar !== undefined && calendar.toLowerCase() !== 'iso8601') return Throw.RangeError('Calendar annotation is not allowed when year is absent');
+        yearAbsent = true;
+      }
+      break;
     }
   }
+  if (!parseResult) return Throw.RangeError('$1 does not match any of the allowed ISO 8601 formats', Value(isoString));
 
-  Assert(!!parseResult);
-  if (Array.isArray(parseResult!)) {
-    return Throw.RangeError('Invalid date: $1', parseResult[0].properties.get('message')?.Value || '');
-  }
-
-  month ??= 1;
-  day ??= 1;
-  hour ??= 0;
-  minute ??= 0;
-  second ??= 0;
-  if (second === 60) second = 59;
-  let millisecondMV: number;
-  let microsecondMV: number;
-  let nanosecondMV: number;
+  month ??= 1n;
+  day ??= 1n;
+  hour ??= 0n;
+  minute ??= 0n;
+  second ??= 0n;
+  if (second === 60n) second = 59n;
+  let millisecondMV: bigint;
+  let microsecondMV: bigint;
+  let nanosecondMV: bigint;
   if (fSeconds) {
     const fSecondsDigits = fSeconds.digits;
     const fSecondsDigitsExtended = `${fSecondsDigits}000000000`;
     const millisecond = fSecondsDigitsExtended.substring(0, 3);
     const microsecond = fSecondsDigitsExtended.substring(3, 6);
     const nanosecond = fSecondsDigitsExtended.substring(6, 9);
-    millisecondMV = StringToNumber(millisecond);
-    microsecondMV = StringToNumber(microsecond);
-    nanosecondMV = StringToNumber(nanosecond);
+    millisecondMV = BigInt(millisecond);
+    microsecondMV = BigInt(microsecond);
+    nanosecondMV = BigInt(nanosecond);
   } else {
-    millisecondMV = 0;
-    microsecondMV = 0;
-    nanosecondMV = 0;
+    millisecondMV = 0n;
+    microsecondMV = 0n;
+    nanosecondMV = 0n;
   }
   Assert(IsValidISODate(year, month, day));
   let time: ISODateTimeParseRecord['Time'];
@@ -243,7 +240,7 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parsetemporalcalendarstring */
 export function ParseTemporalCalendarString(isoString: string): PlainCompletion<string> {
-  const parseResult = ParseISODateTime(isoString, ['TemporalDateTimeString[+Zoned]', 'TemporalDateTimeString[~Zoned]', 'TemporalInstantString', 'TemporalTimeString', 'TemporalMonthDayString', 'TemporalYearMonthString']);
+  const parseResult = EnsureCompletion(ParseISODateTime(isoString, ['TemporalDateTimeString[+Zoned]', 'TemporalDateTimeString[~Zoned]', 'TemporalInstantString', 'TemporalTimeString', 'TemporalMonthDayString', 'TemporalYearMonthString']));
   if (parseResult instanceof NormalCompletion) {
     const calendar = parseResult.Value.Calendar;
     if (calendar === undefined) return 'iso8601';
@@ -251,7 +248,8 @@ export function ParseTemporalCalendarString(isoString: string): PlainCompletion<
   }
   const parseResult2 = DateParser.parse(
     isoString,
-    (parser) => parser.with({ RangeError: true }, () => parser.parseAnnotationValue()),
+    (parser) => parser.parseAnnotationValue(),
+    { RangeError: true },
   );
   if (Array.isArray(parseResult2)) return ThrowCompletion(parseResult2[0]);
   return parseResult2;
@@ -261,22 +259,23 @@ export function ParseTemporalCalendarString(isoString: string): PlainCompletion<
 export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<TemporalDurationObject> {
   const duration = DateParser.parse(
     isoString,
-    (parser) => parser.with({ RangeError: true }, () => parser.parseTemporalDurationString()),
+    (parser) => parser.parseTemporalDurationString(),
+    { RangeError: true },
   );
   if (Array.isArray(duration)) return ThrowCompletion(duration[0]);
   const {
-    AsciiSign: sign, Years: years, Months: months, Weeks: weeks, Days: days, Hours: hours, Minutes: minutes, Seconds: seconds,
+    AsciiSign: sign, Years: years = '', Months: months = '', Weeks: weeks = '', Days: days = '', Hours: hours = '', Minutes: minutes = '', Seconds: seconds = '',
   } = duration;
   const sep = /[.,]/;
-  const fHours = hours?.split(sep)[1];
-  const fMinutes = minutes?.split(sep)[1];
-  const fSeconds = seconds?.split(sep)[1];
-  let yearsMV = Q(yield* ToIntegerWithTruncation(Value(years)));
-  let monthsMV = Q(yield* ToIntegerWithTruncation(Value(months)));
-  let weeksMV = Q(yield* ToIntegerWithTruncation(Value(weeks)));
-  let daysMV = Q(yield* ToIntegerWithTruncation(Value(days)));
-  let hoursMV = Q(yield* ToIntegerWithTruncation(Value(hours)));
-  let minutesMV;
+  const fHours = hours?.split(sep)[1] ?? '';
+  const fMinutes = minutes?.split(sep)[1] ?? '';
+  const fSeconds = seconds?.split(sep)[1] ?? '';
+  let yearsMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(years))));
+  let monthsMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(months))));
+  let weeksMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(weeks))));
+  let daysMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(days))));
+  let hoursMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(hours))));
+  let minutesMV: number;
   if (fHours) {
     Assert(!minutes && !fMinutes && !seconds && !fSeconds);
     const fHoursDigits = fHours;
@@ -285,7 +284,7 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   } else {
     minutesMV = Q(yield* ToIntegerWithTruncation(Value(minutes)));
   }
-  let secondsMV;
+  let secondsMV: number;
   if (fMinutes) {
     Assert(!seconds && !fSeconds);
     const fMinutesDigits = fMinutes;
@@ -296,7 +295,7 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   } else {
     secondsMV = remainder(minutesMV, 1) * 60;
   }
-  let millisecondsMV;
+  let millisecondsMV: number;
   if (fSeconds) {
     const fSecondDigits = fSeconds;
     const fSecondsScale = fSecondDigits.length;
@@ -306,25 +305,26 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   }
   let microsecondsMV = remainder(millisecondsMV, 1) * 1000;
   let nanosecondsMV = remainder(microsecondsMV, 1) * 1000;
-  const factor = sign === '-' ? -1 : 1;
+  const factor = sign === '-' ? -1n : 1n;
   yearsMV *= factor;
   monthsMV *= factor;
   weeksMV *= factor;
   daysMV *= factor;
   hoursMV *= factor;
-  minutesMV = Math.floor(minutesMV) * factor;
-  secondsMV = Math.floor(secondsMV) * factor;
-  millisecondsMV = Math.floor(millisecondsMV) * factor;
-  microsecondsMV = Math.floor(microsecondsMV) * factor;
-  nanosecondsMV = Math.floor(nanosecondsMV) * factor;
-  return Q(yield* CreateTemporalDuration(yearsMV, monthsMV, weeksMV, daysMV, hoursMV, minutesMV, secondsMV, millisecondsMV, microsecondsMV, nanosecondsMV));
+  minutesMV = Math.floor(minutesMV) * Number(factor);
+  secondsMV = Math.floor(secondsMV) * Number(factor);
+  millisecondsMV = Math.floor(millisecondsMV) * Number(factor);
+  microsecondsMV = Math.floor(microsecondsMV) * Number(factor);
+  nanosecondsMV = Math.floor(nanosecondsMV) * Number(factor);
+  return Q(yield* CreateTemporalDuration(yearsMV, monthsMV, weeksMV, daysMV, hoursMV, BigInt(minutesMV), BigInt(secondsMV), BigInt(millisecondsMV), BigInt(microsecondsMV), BigInt(nanosecondsMV)));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parsetemporaltimezonestring */
 export function ParseTemporalTimeZoneString(timeZoneString: string): PlainCompletion<TimeZoneIdentifierParseRecord> {
   const parseResult = DateParser.parse(
     timeZoneString,
-    (parser) => parser.with({ RangeError: true }, () => parser.parseTimeZoneIdentifier()),
+    (parser) => parser.parseTimeZoneIdentifier(),
+    { RangeError: true },
   );
   if (!Array.isArray(parseResult)) {
     return X(ParseTimeZoneIdentifier(timeZoneString));
@@ -344,11 +344,11 @@ export function ParseTemporalTimeZoneString(timeZoneString: string): PlainComple
 /** https://tc39.es/proposal-temporal/#sec-temporal-time-zone-identifier-parse-records */
 export interface TimeZoneIdentifierParseRecord {
   Name: string | undefined;
-  OffsetMinutes: number | undefined;
+  OffsetMinutes: bigint | undefined;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parsemonthcode */
-export function* ParseMonthCode(argument: Value | string): PlainEvaluator<{ MonthNumber: number; IsLeapMonth: boolean }> {
+export function* ParseMonthCode(argument: Value | string): PlainEvaluator<{ MonthNumber: bigint; IsLeapMonth: boolean }> {
   const monthCode = typeof argument === 'string' ? Value(argument) : Q(yield* ToPrimitive(argument, 'string'));
   if (!(monthCode instanceof JSStringValue)) {
     return Throw.TypeError('monthCode ($1) is not a string', typeof argument === 'string' ? Value(argument) : argument);
@@ -372,42 +372,44 @@ export function* ParseMonthCode(argument: Value | string): PlainEvaluator<{ Mont
     isLeapMonth = true;
   }
   const monthCodeDigits = monthCode.stringValue().substring(1, 3);
-  const monthNumber = parseInt(monthCodeDigits, 10);
-  if (monthNumber === 0 && !isLeapMonth) {
+  const monthNumber = BigInt(monthCodeDigits);
+  if (monthNumber === 0n && !isLeapMonth) {
     return Throw.RangeError('$1 is not a valid month code', monthCode);
   }
   return { MonthNumber: monthNumber, IsLeapMonth: isLeapMonth };
 }
 
 /** https://tc39.es/proposal-temporal/#sec-parsedatetimeutcoffset */
-export function ParseDateTimeUTCOffset(offsetString: string): PlainCompletion<number> {
+export function ParseDateTimeUTCOffset(offsetString: string): PlainCompletion<bigint> {
   const parseResult = DateParser.parse(
     offsetString,
-    (parser) => parser.with({ SubMinutePrecision: true, RangeError: true }, () => parser.parseUTCOffset()),
+    (parser) => parser.parseUTCOffset(),
+    { SubMinutePrecision: true, RangeError: true },
   );
   if (Array.isArray(parseResult)) return ThrowCompletion(parseResult[0]);
   Assert(!!parseResult.Sign);
-  const sign = parseResult.Sign === '-' ? -1 : 1;
+  const sign = parseResult.Sign === '-' ? -1n : 1n;
   Assert(parseResult.Hour !== undefined);
-  const hours = StringToNumber(parseResult.Hour);
-  const minutes = parseResult.Minute ? StringToNumber(parseResult.Minute) : 0;
-  const seconds = parseResult.Second ? StringToNumber(parseResult.Second) : 0;
+  const hours = BigInt(parseResult.Hour);
+  const minutes = parseResult.Minute ? BigInt(parseResult.Minute) : 0n;
+  const seconds = parseResult.Second ? BigInt(parseResult.Second) : 0n;
   let nanoseconds;
   if (!parseResult.TemporalDecimalFraction) {
-    nanoseconds = 0;
+    nanoseconds = 0n;
   } else {
     const fraction = `${parseResult.TemporalDecimalFraction.digits}000000000`;
     const nanosecondsString = fraction.substring(1, 10);
-    nanoseconds = StringToNumber(nanosecondsString);
+    nanoseconds = BigInt(nanosecondsString);
   }
-  return sign * (((hours * 60 + minutes) * 60 + seconds) * 1e9 + nanoseconds);
+  return sign * (((hours * 60n + minutes) * 60n + seconds) * BigInt(1e9) + nanoseconds);
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-parsetimezoneidentifier
 export function ParseTimeZoneIdentifier(identifier: string): PlainCompletion<TimeZoneIdentifierParseRecord> {
   const parseResult = DateParser.parse(
     identifier,
-    (parser) => parser.with({ RangeError: true }, () => parser.parseTimeZoneIdentifier()),
+    (parser) => parser.parseTimeZoneIdentifier(),
+    { RangeError: true },
   );
   if (Array.isArray(parseResult)) return ThrowCompletion(parseResult[0]);
   if (parseResult.TimeZoneIANAName) {
@@ -419,14 +421,12 @@ export function ParseTimeZoneIdentifier(identifier: string): PlainCompletion<Tim
   // the whole string is UTCOffset
   const offset = identifier;
   const offsetNanoseconds = X(ParseDateTimeUTCOffset(offset));
-  const offsetMinutes = offsetNanoseconds / 60e9;
+  const offsetMinutes = offsetNanoseconds / BigInt(60e9);
   return { Name: undefined, OffsetMinutes: offsetMinutes };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export declare namespace RFC9557ParseNode {
-  export type Hour = string;
-  export type MinuteSecond = string;
   export interface Annotation {
     readonly CriticalFlag: boolean;
     readonly AnnotationKey: string;
@@ -435,9 +435,9 @@ export declare namespace RFC9557ParseNode {
 
   export interface UTCOffset {
     readonly Sign: '+' | '-';
-    readonly Hour: string;
-    readonly Minute?: string;
-    readonly Second?: string;
+    readonly Hour: bigint;
+    readonly Minute?: bigint;
+    readonly Second?: bigint;
     readonly TemporalDecimalFraction?: { readonly separator: '.' | ','; readonly digits: string };
     readonly Extended?: boolean;
     readonly sourceText: string;
@@ -455,26 +455,19 @@ export declare namespace RFC9557ParseNode {
   }
 
   export interface DateSpecYearMonth {
-    readonly Year: number;
-    readonly Month: number;
+    readonly Year: bigint;
+    readonly Month: bigint;
   }
 
   export interface DateSpecMonthDay {
-    readonly Month: number;
-    readonly Day: number;
+    readonly Month: bigint;
+    readonly Day: bigint;
   }
 
   export interface DateSpec {
-    readonly Year: number;
-    readonly Month: number;
-    readonly Day: number;
-  }
-
-  export interface AmbiguousTemporalTimeString {
-    readonly DateSpecMonthDay?: DateSpecMonthDay;
-    readonly DateSpecYearMonth?: DateSpecYearMonth;
-    readonly TimeZoneAnnotation?: TimeZoneAnnotation;
-    readonly Annotations?: readonly Annotation[];
+    readonly Year: bigint;
+    readonly Month: bigint;
+    readonly Day: bigint;
   }
 
   export interface DateTimeUTCOffset {
@@ -488,9 +481,9 @@ export declare namespace RFC9557ParseNode {
   }
 
   export interface TimeSpec {
-    readonly Hour: Hour;
-    readonly Minute?: MinuteSecond;
-    readonly Second?: MinuteSecond;
+    readonly Hour: bigint;
+    readonly Minute?: bigint;
+    readonly Second?: bigint;
     readonly TemporalDecimalFraction?: TemporalDecimalFraction;
   }
 
@@ -568,13 +561,12 @@ export class DateParser {
   static parse<T>(
     source: string,
     f: (parser: DateParser) => T,
+    parameters: Partial<DateParser['grammarParameters']> = {},
   ): T | ObjectValue[] {
-    const parser = new DateParser(source);
+    const parser = new DateParser(source, parameters);
     try {
       const parse = f(parser);
-      if (parser.peek()) {
-        return [Throw.SyntaxError('Date parser found more content after parsing finished when parsing $1', source).Value as ObjectValue];
-      }
+      parser.consumeAll();
       return parse;
     } catch (error) {
       Assert(error instanceof ThrowCompletion && error.Value instanceof ObjectValue);
@@ -586,8 +578,9 @@ export class DateParser {
 
   public pos = 0;
 
-  constructor(input: string) {
+  constructor(input: string, parameters: Partial<DateParser['grammarParameters']> = {}) {
     this.input = input;
+    this.grammarParameters = { ...this.grammarParameters, ...parameters };
   }
 
   private grammarParameters = {
@@ -642,7 +635,7 @@ export class DateParser {
   //  in case of +Extended ~Extended, this is equal to "-"?
   private parseDateSeparator(Extended: boolean) {
     if (Extended) {
-      this.expect('-', 'Expected date separator');
+      this.expect('-', () => this.raise('Expected date separator'));
       return '-';
     }
     return undefined;
@@ -653,7 +646,7 @@ export class DateParser {
   }
 
   //  DateYear :::\d{4} or [+-]\d{6}
-  private parseDateYear(): number {
+  private parseDateYear(): bigint {
     const year = this.eatRegExp(/\d{4}|[+-]\d{6}/);
     if (!year) {
       throw this.raise('Expected DateYear');
@@ -661,25 +654,25 @@ export class DateParser {
     if (year === '-000000') {
       throw this.raise('-000000 is not a valid year');
     }
-    return Number.parseInt(year, 10);
+    return BigInt(year);
   }
 
   //  DateMonth ::: 01 to 12
-  private parseDateMonth(): number {
+  private parseDateMonth(): bigint {
     const month = this.eatRegExp(/0[1-9]|1[0-2]/);
     if (!month) {
       throw this.raise('Invalid DateMonth');
     }
-    return Number.parseInt(month, 10);
+    return BigInt(month);
   }
 
   //  DateDay ::: 01 to 31
-  private parseDateDay(): number {
+  private parseDateDay(): bigint {
     const day = this.eatRegExp(/0[1-9]|[12][0-9]|3[01]/);
     if (!day) {
       throw this.raise('Invalid DateDay');
     }
-    return Number.parseInt(day, 10);
+    return BigInt(day);
   }
 
   //  Date :::
@@ -714,12 +707,12 @@ export class DateParser {
 
   // DateTimeSeparator ::: <SP> T t
   private parseDateTimeSeparator(): ' ' | 'T' | 't' {
-    return this.parse(/[ Tt]/, 'Expected DateTimeSeparator') as ' ' | 'T' | 't';
+    return this.parse(/[ Tt]/, () => this.raise('Expected DateTimeSeparator')) as ' ' | 'T' | 't';
   }
 
   // TimeSecond ::: 00 to 60
-  private parseTimeSecond(): string {
-    return this.parse(/0[0-9]|[1-5][0-9]|60/, 'Invalid second');
+  private parseTimeSecond(): bigint {
+    return BigInt(this.parse(/0[0-9]|[1-5][0-9]|60/, () => this.raise('Invalid second')));
   }
 
   //  TimeSeparator :::
@@ -728,7 +721,7 @@ export class DateParser {
   //  in case of +Extended ~Extended, this is equal to ":"?
   private parseTimeSeparator(Extended: boolean) {
     if (Extended) {
-      this.expect(':', 'Expected time separator');
+      this.expect(':', () => this.raise('Expected time separator'));
     }
   }
 
@@ -778,8 +771,8 @@ export class DateParser {
   //    UTCOffset[+SubMinutePrecision]
   private parseDateTimeUTCOffset(): RFC9557ParseNode.DateTimeUTCOffset {
     if (this.grammarParameters.Z) {
-      const char = this.peek();
-      if (char === 'Z' || char === 'z') return { UTCDesignator: char };
+      const char = this.eat('Z', 'z');
+      if (char) return { UTCDesignator: char };
     }
     return { UTCOffset: this.with({ SubMinutePrecision: true }, () => this.parseUTCOffset()) };
   }
@@ -799,7 +792,7 @@ export class DateParser {
     if (!this.lookaheads('z', 'Z', '+', '-')) {
       return { Date, DateTimeSeparator, Time };
     }
-    const DateTimeUTCOffset = this.with({ Z: true }, () => this.parseDateTimeUTCOffset()) ?? undefined;
+    const DateTimeUTCOffset = this.parseDateTimeUTCOffset();
     return {
       Date, DateTimeSeparator, Time, DateTimeUTCOffset,
     };
@@ -809,8 +802,8 @@ export class DateParser {
   //    [~Zoned] DateTime[~Z, ?TimeRequired] TimeZoneAnnotation? Annotations?
   //    [+Zoned] DateTime[+Z, ?TimeRequired] TimeZoneAnnotation Annotations?
   private parseAnnotatedDateTime(): RFC9557ParseNode.AnnotatedDateTime {
-    const DateTime = this.parseDateTime();
-    const TimeZoneAnnotation = this.grammarParameters.Zoned ? this.parseTimeZoneAnnotation() : this.try(() => this.parseTimeZoneAnnotation());
+    const DateTime = this.with({ Z: this.grammarParameters.Zoned }, () => this.parseDateTime());
+    const TimeZoneAnnotation = this.grammarParameters.Zoned ? this.parseTimeZoneAnnotation() : this.try(() => this.parseTimeZoneAnnotation(), false);
     if (!this.lookahead('[')) {
       return { DateTime, TimeZoneAnnotation };
     }
@@ -834,7 +827,7 @@ export class DateParser {
       result.DateTimeUTCOffset = this.with({ Z: false }, () => this.parseDateTimeUTCOffset());
     }
     if (this.lookahead('[')) {
-      result.TimeZoneAnnotation = this.try(() => this.parseTimeZoneAnnotation());
+      result.TimeZoneAnnotation = this.try(() => this.parseTimeZoneAnnotation(), false);
     }
     if (this.lookahead('[')) {
       result.Annotations = this.parseAnnotations();
@@ -842,39 +835,29 @@ export class DateParser {
     return result;
   }
 
-  expect(char: string, message?: string): void {
+  expect(char: string, message?: () => ThrowCompletion): void {
     if (this.input[this.pos] !== char) {
-      throw new Error(message || `Expected '${char}' at position ${this.pos}`);
+      throw message ? message() : this.raise('Expected \'$1\' at position $2', char, this.pos);
     }
     this.pos += 1;
   }
 
-  expects(char: string[], message?: string): void {
-    for (const c of char) {
-      if (this.input[this.pos] === c) {
-        this.pos += 1;
-        return;
-      }
-    }
-    throw new Error(message || `Expected one of '${char.join(', ')}' at position ${this.pos}`);
-  }
-
-  private parse(regExp: RegExp, message: string): string {
+  private parse(regExp: RegExp, message: () => ThrowCompletion): string {
     const match = regExp.exec(this.input.slice(this.pos));
     if (!match || match.index !== 0) {
-      throw new Error(message);
+      throw message();
     }
     this.pos += match[0].length;
     return match[0];
   }
 
-  try<T>(f: () => T, consumeAll = false): T | undefined {
+  try<T>(f: () => T, consumeAll: boolean): T | undefined {
     const startPos = this.pos;
     const oldParameter = this.grammarParameters;
     try {
       const result = f();
-      if (consumeAll && this.peek()) {
-        throw new SyntaxError('More content than expected');
+      if (consumeAll) {
+        this.consumeAll();
       }
       return result;
     } catch {
@@ -885,19 +868,13 @@ export class DateParser {
     }
   }
 
-  // #region Top Goals (used as a parameter of ParseText)
-  // AmbiguousTemporalTimeString :::
-  //   DateSpecMonthDay TimeZoneAnnotation? Annotations?
-  //   DateSpecYearMonth TimeZoneAnnotation? Annotations?
-  parseAmbiguousTemporalTimeString(): RFC9557ParseNode.AmbiguousTemporalTimeString {
-    const DateSpecMonthDay = this.try(() => this.parseDateSpecMonthDay());
-    const DateSpecYearMonth = DateSpecMonthDay ? undefined : this.parseDateSpecYearMonth();
-    const TimeZoneAnnotation = this.lookahead('[') ? this.try(() => this.parseTimeZoneAnnotation()) : undefined;
-    const Annotations = this.lookahead('[') ? this.parseAnnotations() : undefined;
-    return {
-      DateSpecMonthDay, DateSpecYearMonth, TimeZoneAnnotation, Annotations,
-    };
+  consumeAll() {
+    if (this.peek()) {
+      throw this.raise('Date parser found more content after parsing finished when parsing $1', this.input);
+    }
   }
+
+  // #region Top Goals (used as a parameter of ParseText)
 
   //  AnnotationValue ::: one or more [a-zA-Z0-9]+ connected with "-"
   parseAnnotationValue(): string {
@@ -958,8 +935,8 @@ export class DateParser {
     const DateTimeSeparator = this.parseDateTimeSeparator();
     const Time = this.parseTime();
     const DateTimeUTCOffset = this.with({ Z: true }, () => this.parseDateTimeUTCOffset());
-    const TimeZoneAnnotation = this.lookahead('[') ? this.try(() => this.parseTimeZoneAnnotation()) : undefined;
-    const Annotations = this.lookahead('[') ? this.try(() => this.parseAnnotations()) : undefined;
+    const TimeZoneAnnotation = this.lookahead('[') ? this.try(() => this.parseTimeZoneAnnotation(), false) : undefined;
+    const Annotations = this.lookahead('[') ? this.try(() => this.parseAnnotations(), false) : undefined;
     return {
       Date,
       DateTimeSeparator,
@@ -974,7 +951,7 @@ export class DateParser {
   //    AnnotatedYearMonth
   //    AnnotatedDateTime[~Zoned, ~TimeRequired]
   parseTemporalYearMonthString(): RFC9557ParseNode.TemporalYearMonthString {
-    const AnnotatedYearMonth = this.try(() => this.parseAnnotatedYearMonth());
+    const AnnotatedYearMonth = this.try(() => this.parseAnnotatedYearMonth(), true);
     if (AnnotatedYearMonth) return { AnnotatedYearMonth };
     const AnnotatedDateTime = this.with({ Zoned: false, TimeRequired: false }, () => this.parseAnnotatedDateTime());
     return { AnnotatedDateTime };
@@ -993,7 +970,7 @@ export class DateParser {
   //    AnnotatedMonthDay
   //    AnnotatedDateTime[~Zoned, ~TimeRequired]
   parseTemporalMonthDayString(): RFC9557ParseNode.TemporalMonthDayString {
-    const AnnotatedMonthDay = this.try(() => this.parseAnnotatedMonthDay());
+    const AnnotatedMonthDay = this.try(() => this.parseAnnotatedMonthDay(), true);
     if (AnnotatedMonthDay) return { AnnotatedMonthDay };
     const AnnotatedDateTime = this.with({ Zoned: false, TimeRequired: false }, () => this.parseAnnotatedDateTime());
     return { AnnotatedDateTime };
@@ -1063,14 +1040,14 @@ export class DateParser {
   // #region Sub goals
   //  ASCIISign ::: one of + -
   parseAsciiSign(): '+' | '-' {
-    return this.parse(/[+-]/, 'Expected ASCIISign') as '+' | '-';
+    return this.parse(/[+-]/, () => this.raise('Expected ASCIISign')) as '+' | '-';
   }
 
   // TimeZoneIANAName ::: TimeZoneIANANameComponent separated by "/"
   // TimeZoneIANANameComponent ::: [._a-zA-Z] followed by zero or more [._a-zA-Z\d\-+]
   parseTimeZoneIANAName(): string {
     const parseComponent = (): string => {
-      const name = this.parse(/[._a-zA-Z][._a-zA-Z\d\-+]*/, 'Expected TimeZoneIANANameComponent');
+      const name = this.parse(/[._a-zA-Z][._a-zA-Z\d\-+]*/, () => this.raise('Expected TimeZoneIANANameComponent'));
       return name;
     };
 
@@ -1082,13 +1059,13 @@ export class DateParser {
   }
 
   //  Hour :: number 00 to 23
-  parseHour(): string {
-    return this.parse(/([01]\d)|(2[0123])/, 'Invalid hour');
+  parseHour(): bigint {
+    return BigInt(this.parse(/([01]\d)|(2[0123])/, () => this.raise('Invalid hour')));
   }
 
   //  MinuteSecond :: number 00 to 59
-  parseMinuteSecond(): string {
-    return this.parse(/[0-5]\d/, 'Invalid minute or second');
+  parseMinuteSecond(): bigint {
+    return BigInt(this.parse(/[0-5]\d/, () => this.raise('Invalid minute or second')));
   }
 
   //  TemporalDecimalFraction ::: [.,][0-9]{1,9}
@@ -1098,7 +1075,7 @@ export class DateParser {
       return undefined;
     }
     this.pos += 1;
-    const digits = this.parse(/[0-9]{1,9}/, 'Expected 1 to 9 decimal digits in TemporalDecimalFraction');
+    const digits = this.parse(/[0-9]{1,9}/, () => this.raise('Expected 1 to 9 decimal digits in TemporalDecimalFraction'));
     return {
       separator,
       digits,
@@ -1161,7 +1138,7 @@ export class DateParser {
 
   //  AnnotationKey ::: [a-z_][a-z_0-9-]*
   parseAnnotationKey(): string {
-    return this.parse(/[a-z_][a-z_0-9-]*/, 'Expected AnnotationKey');
+    return this.parse(/[a-z_][a-z_0-9-]*/, () => this.raise('Expected AnnotationKey'));
   }
   // #endregion
 }

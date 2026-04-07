@@ -45,7 +45,11 @@ export function R(x: unknown) {
     return x.bigintValue(); // eslint-disable-line @engine262/mathematical-value
   }
   Assert(x instanceof NumberValue);
-  return x.numberValue(); // eslint-disable-line @engine262/mathematical-value
+  const number = x.numberValue(); // eslint-disable-line @engine262/mathematical-value
+  if (Object.is(number, -0)) {
+    return 0;
+  }
+  return number;
 }
 
 // 6.2.5.1 IsAccessorDescriptor

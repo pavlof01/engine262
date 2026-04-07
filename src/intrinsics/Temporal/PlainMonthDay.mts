@@ -48,8 +48,8 @@ function* PlainMonthDayConstructor([
   if (referenceISOYear instanceof UndefinedValue) {
     referenceISOYear = F(1972);
   }
-  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
-  const d = Q(yield* ToIntegerWithTruncation(isoDay));
+  const m = BigInt(Q(yield* ToIntegerWithTruncation(isoMonth)));
+  const d = BigInt(Q(yield* ToIntegerWithTruncation(isoDay)));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }
@@ -57,7 +57,7 @@ function* PlainMonthDayConstructor([
     return Throw.TypeError('calendar is not a string');
   }
   const calendar = Q(CanonicalizeCalendar(_calendar.stringValue()));
-  const y = Q(yield* ToIntegerWithTruncation(referenceISOYear));
+  const y = BigInt(Q(yield* ToIntegerWithTruncation(referenceISOYear)));
   if (!IsValidISODate(y, m, d)) {
     return Throw.RangeError('$1-$2-$3 is not a valid date', y, m, d);
   }
