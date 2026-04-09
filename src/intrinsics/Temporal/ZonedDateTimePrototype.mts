@@ -85,6 +85,7 @@ import {
   type PlainCompletion,
   type Realm,
   type ValueEvaluator,
+  TotalTimeDuration,
 } from '#self';
 
 function thisTemporalZonedDateTimeValue(value: Value): PlainCompletion<TemporalZonedDateTimeObject> {
@@ -102,6 +103,20 @@ function ZonedDateTimeProto_timeZoneIdGetter(_args: Arguments, { thisValue }: Fu
   return Value(Q(thisTemporalZonedDateTimeValue(thisValue)).TimeZone);
 }
 
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.era */
+function ZonedDateTimeProto_eraGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return Value(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).Era);
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.erayear */
+function ZonedDateTimeProto_eraYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).EraYear));
+}
+
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.year */
 function ZonedDateTimeProto_yearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
@@ -109,11 +124,34 @@ function ZonedDateTimeProto_yearGetter(_args: Arguments, { thisValue }: Function
   return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).Year));
 }
 
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.yearofweek */
+function ZonedDateTimeProto_yearOfWeekGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  const result = CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).WeekOfYear.Year;
+  if (result === undefined) return Value.undefined;
+  return F(Number(result));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.inleapyear */
+function ZonedDateTimeProto_inLeapYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return Value(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).InLeapYear);
+}
+
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.month */
 function ZonedDateTimeProto_monthGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
   return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).Month));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.monthsinyear */
+function ZonedDateTimeProto_monthsInYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).MonthsInYear));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.monthcode */
@@ -130,10 +168,65 @@ function ZonedDateTimeProto_dayGetter(_args: Arguments, { thisValue }: FunctionC
   return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).Day));
 }
 
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.dayofweek */
+function ZonedDateTimeProto_dayOfWeekGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DayOfWeek));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.dayofyear */
+function ZonedDateTimeProto_dayOfYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DayOfYear));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.daysinweek */
+function ZonedDateTimeProto_daysInWeekGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DaysInWeek));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.daysinmonth */
+function ZonedDateTimeProto_daysInMonthGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DaysInMonth))
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.daysinyear */
+function ZonedDateTimeProto_daysInYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DaysInYear));
+}
+
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.hour */
 function ZonedDateTimeProto_hourGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   return F(Number(GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds).Time.Hour));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.hoursinday */
+function ZonedDateTimeProto_hoursInDayGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const timeZone = zonedDateTime.TimeZone;
+  const isoDateTime = GetISODateTimeFor(timeZone, zonedDateTime.EpochNanoseconds);
+  const today = isoDateTime.ISODate;
+  const tomorrow = AddDaysToISODate(today, 1n);
+  const todayNs = Q(GetStartOfDay(timeZone, today));
+  const tomorrowNs = Q(GetStartOfDay(timeZone, tomorrow));
+  const diff = TimeDurationFromEpochNanosecondsDifference(tomorrowNs, todayNs);
+  return F(TotalTimeDuration(diff, TemporalUnit.Hour).toNumber());
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.weekofyear */
+function ZonedDateTimeProto_weekOfYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).WeekOfYear));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.minute */
@@ -181,6 +274,13 @@ function ZonedDateTimeProto_epochNanosecondsGetter(_args: Arguments, { thisValue
 function ZonedDateTimeProto_offsetNanosecondsGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   return F(Number(GetOffsetNanosecondsFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds)));
+}
+
+/** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.offset */
+function ZonedDateTimeProto_offsetGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
+  const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
+  const offsetNanoseconds = GetOffsetNanosecondsFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
+  return Value(FormatUTCOffsetNanoseconds(offsetNanoseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.zoneddatetime.prototype.with */
@@ -447,11 +547,23 @@ export function bootstrapTemporalZonedDateTimePrototype(realmRec: Realm) {
   const prototype = bootstrapPrototype(realmRec, [
     ['calendarId', [ZonedDateTimeProto_calendarIdGetter]],
     ['timeZoneId', [ZonedDateTimeProto_timeZoneIdGetter]],
+    ['era', [ZonedDateTimeProto_eraGetter]],
+    ['eraYear', [ZonedDateTimeProto_eraYearGetter]],
     ['year', [ZonedDateTimeProto_yearGetter]],
+    ['yearOfWeek', [ZonedDateTimeProto_yearOfWeekGetter]],
+    ['inLeapYear', [ZonedDateTimeProto_inLeapYearGetter]],
     ['month', [ZonedDateTimeProto_monthGetter]],
     ['monthCode', [ZonedDateTimeProto_monthCodeGetter]],
+    ['monthsInYear', [ZonedDateTimeProto_monthsInYearGetter]],
     ['day', [ZonedDateTimeProto_dayGetter]],
+    ['weekOfYear', [ZonedDateTimeProto_weekOfYearGetter]],
+    ['dayOfWeek', [ZonedDateTimeProto_dayOfWeekGetter]],
+    ['dayOfYear', [ZonedDateTimeProto_dayOfYearGetter]],
+    ['daysInWeek', [ZonedDateTimeProto_daysInWeekGetter]],
+    ['daysInMonth', [ZonedDateTimeProto_daysInMonthGetter]],
+    ['daysInYear', [ZonedDateTimeProto_daysInYearGetter]],
     ['hour', [ZonedDateTimeProto_hourGetter]],
+    ['hoursInDay', [ZonedDateTimeProto_hoursInDayGetter]],
     ['minute', [ZonedDateTimeProto_minuteGetter]],
     ['second', [ZonedDateTimeProto_secondGetter]],
     ['millisecond', [ZonedDateTimeProto_millisecondGetter]],
@@ -460,6 +572,7 @@ export function bootstrapTemporalZonedDateTimePrototype(realmRec: Realm) {
     ['epochMilliseconds', [ZonedDateTimeProto_epochMillisecondsGetter]],
     ['epochNanoseconds', [ZonedDateTimeProto_epochNanosecondsGetter]],
     ['offsetNanoseconds', [ZonedDateTimeProto_offsetNanosecondsGetter]],
+    ['offset', [ZonedDateTimeProto_offsetGetter]],
     ['with', ZonedDateTimeProto_with, 1],
     ['withTimeZone', ZonedDateTimeProto_withTimeZone, 1],
     ['withCalendar', ZonedDateTimeProto_withCalendar, 1],

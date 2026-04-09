@@ -19,11 +19,10 @@ import { mark_TimeZoneAwareNotImplemented } from './not-implemented.mts';
 import {
   Assert,
   Get,
-  JSStringValue,
   MakeDate,
   MakeDay,
   MakeTime,
-  ObjectValue, OrdinaryObjectCreate, Q, Throw, TimeValueToISODateTimeRecord, ToBoolean, ToNumber, ToString, UndefinedValue, Value, X, type PlainEvaluator, type PropertyKeyValue,
+  ObjectValue, OrdinaryObjectCreate, Q, Throw, TimeValueToISODateTimeRecord, ToNumber, ToString, UndefinedValue, Value, X, type PlainEvaluator,
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-year-week-record-specification-type */
@@ -52,74 +51,29 @@ export function GetOptionsObject(options: Value) {
   return Throw.TypeError('$1 is not an object', options);
 }
 
-/** https://tc39.es/proposal-temporal/#sec-getoption */
-export function GetOption<const T extends readonly string[], D extends T[number] | undefined>(options: ObjectValue, property: PropertyKeyValue | string, type: 'string', values: T | undefined, defaultValue: '~required~' | D): PlainEvaluator<D | T[number]>;
-export function GetOption<D extends boolean | undefined>(options: ObjectValue, property: PropertyKeyValue | string, type: 'boolean', values: undefined, defaultValue: '~required~' | D): PlainEvaluator<D>;
-export function* GetOption(options: ObjectValue, property: PropertyKeyValue | string, type: 'boolean' | 'string', values: readonly string[] | undefined, defaultValue: '~required~' | string | boolean | undefined): PlainEvaluator<string | boolean> {
-  if (typeof property === 'string') {
-    property = Value(property);
-  }
-  let value = Q(yield* Get(options, property));
-  if (value === Value.undefined) {
-    if (defaultValue === '~required~') {
-      let propertyNameToString: string;
-      if (typeof property === 'string') {
-        propertyNameToString = property;
-      } else if (property instanceof JSStringValue) {
-        propertyNameToString = property.stringValue();
-      } else if (property.Description instanceof JSStringValue) {
-        propertyNameToString = `Symbol(${property.Description.stringValue()})`;
-      } else {
-        propertyNameToString = 'Symbol';
-      }
-      return Throw.RangeError('"$1" is required on object $2', propertyNameToString, options);
-    }
-    return defaultValue!;
-  }
-  if (type === 'boolean') {
-    value = Q(ToBoolean(value));
-  } else {
-    Assert(type === 'string');
-    value = Q(yield* ToString(value));
-  }
-  if (values !== undefined) {
-    const str = (value as JSStringValue).stringValue();
-    if (!values.includes(str)) {
-      return Throw.RangeError('"$1" on object $2 is not valid ($3)', property, options, str);
-    }
-  }
-  return value instanceof JSStringValue ? value.stringValue() : value.booleanValue();
-}
-
 /** https://tc39.es/proposal-temporal/#sec-getroundingmodeoption */
 export function* GetRoundingModeOption(
   options: ObjectValue,
   fallback: RoundingMode,
 ): PlainEvaluator<RoundingMode> {
-  const allowedStrings = ['ceil', 'floor', 'expand', 'trunc', 'halfCeil', 'halfFloor', 'halfExpand', 'halfTrunc', 'halfEven'] as const;
-  const stringFallback = ({
-    [RoundingMode.Ceil]: 'ceil',
-    [RoundingMode.Floor]: 'floor',
-    [RoundingMode.Expand]: 'expand',
-    [RoundingMode.Trunc]: 'trunc',
-    [RoundingMode.HalfCeil]: 'halfCeil',
-    [RoundingMode.HalfFloor]: 'halfFloor',
-    [RoundingMode.HalfExpand]: 'halfExpand',
-    [RoundingMode.HalfTrunc]: 'halfTrunc',
-    [RoundingMode.HalfEven]: 'halfEven',
-  } as const)[fallback];
-  const stringValue = Q(yield* GetOption(options, Value('roundingMode'), 'string', allowedStrings, stringFallback));
-  return {
-    ceil: RoundingMode.Ceil,
-    floor: RoundingMode.Floor,
-    expand: RoundingMode.Expand,
-    trunc: RoundingMode.Trunc,
-    halfCeil: RoundingMode.HalfCeil,
-    halfFloor: RoundingMode.HalfFloor,
-    halfExpand: RoundingMode.HalfExpand,
-    halfTrunc: RoundingMode.HalfTrunc,
-    halfEven: RoundingMode.HalfEven,
-  }[stringValue];
+  const table70 = [
+    { String: 'ceil', Mode: RoundingMode.Ceil },
+    { String: 'floor', Mode: RoundingMode.Floor },
+    { String: 'expand', Mode: RoundingMode.Expand },
+    { String: 'trunc', Mode: RoundingMode.Trunc },
+    { String: 'halfCeil', Mode: RoundingMode.HalfCeil },
+    { String: 'halfFloor', Mode: RoundingMode.HalfFloor },
+    { String: 'halfExpand', Mode: RoundingMode.HalfExpand },
+    { String: 'halfTrunc', Mode: RoundingMode.HalfTrunc },
+    { String: 'halfEven', Mode: RoundingMode.HalfEven },
+  ] as const;
+
+  const value = Q(yield* Get(options, Value('roundingMode')));
+  if (value instanceof UndefinedValue) return fallback;
+  const stringValue = Q(yield* ToString(value)).stringValue();
+  const result = table70.find((entry) => entry.String === stringValue);
+  if (!result) return Throw.RangeError('"roundingMode" on object $1 is not valid ($2), only $3 are accepted', options, stringValue, table70.map((entry) => entry.String).join(', '));
+  return result.Mode;
 }
 
 /** https://tc39.es/proposal-temporal/#table-temporal-rounding-modes */

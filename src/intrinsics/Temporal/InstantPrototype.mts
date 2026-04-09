@@ -31,6 +31,7 @@ import type { TemporalInstantObject } from './Instant.mts';
 import {
   Assert,
   CreateDataPropertyOrThrow,
+  F,
   Get,
   HoursPerDay,
   JSStringValue,
@@ -62,7 +63,7 @@ function InstantProto_epochMillisecondsGetter(_args: Arguments, { thisValue }: F
   const instant = Q(thisTemporalInstantValue(thisValue));
   const ns = instant.EpochNanoseconds;
   const ms = floorDiv(ns, BigInt(1e6));
-  return Value(ms);
+  return F(Number(ms));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.instant.prototype.epochnanoseconds */

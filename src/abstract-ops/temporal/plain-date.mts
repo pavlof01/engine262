@@ -166,8 +166,8 @@ export function IsValidISODate(year: Integer, month: Integer, day: Integer): boo
 /** https://tc39.es/proposal-temporal/#sec-temporal-adddaystoisodate */
 export function AddDaysToISODate(isoDate: ISODateRecord, days: Integer): ISODateRecord {
   const epochDays = ISODateToEpochDays(isoDate.Year, isoDate.Month - 1n, isoDate.Day) + days;
-  const ms = EpochDaysToEpochMs(epochDays, 0n);
-  return CreateISODateRecord(EpochTimeToEpochYear(ms), EpochTimeToMonthInYear(ms) + 1n, EpochTimeToDate(ms));
+  const epochMilliseconds = EpochDaysToEpochMs(epochDays, 0n);
+  return CreateISODateRecord(EpochTimeToEpochYear(epochMilliseconds), EpochTimeToMonthInYear(epochMilliseconds) + 1n, EpochTimeToDate(epochMilliseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-padisoyear */

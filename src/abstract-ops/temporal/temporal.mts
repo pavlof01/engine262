@@ -9,7 +9,7 @@ import {
   abs, floorDiv, modulo, truncate,
 } from '../math.mts';
 import {
-  GetOption, GetRoundingIncrementOption, GetRoundingModeOption, GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, UnsignedRoundingMode, type TimeZoneIdentifier,
+  GetRoundingIncrementOption, GetRoundingModeOption, GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, UnsignedRoundingMode, type TimeZoneIdentifier,
 } from './addition.mts';
 import { RoundingMode } from './addition.mts';
 import {
@@ -78,20 +78,21 @@ export function EpochTimeForYear(y: Integer): Integer {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-epochtimetoepochyear */
-// TODO(temporal): Review
 export function EpochTimeToEpochYear(t: Integer): Integer {
   // EpochTimeToEpochYear(t) = the largest integral Number y (closest to +∞) such that EpochTimeForYear(y) ≤ t
-  let lower = -271821n;
-  let upper = 275760n;
-  while (lower < upper) {
-    const mid = (lower + upper + 1n) / 2n;
-    if (EpochTimeForYear(mid) <= t) {
-      lower = mid;
-    } else {
-      upper = mid - 1n;
-    }
+  const day = EpochTimeToDayNumber(t);
+  const daysPer400Years = 146097n;
+  const cycle = floorDiv(day, daysPer400Years);
+  let year = 1970n + cycle * 400n;
+
+  while (day >= EpochDayNumberForYear(year + 1n)) {
+    year += 1n;
   }
-  return lower;
+  while (day < EpochDayNumberForYear(year)) {
+    year -= 1n;
+  }
+
+  return year;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-mathematicalinleapyear */
@@ -211,20 +212,24 @@ export function __IsDateUnit(unit: TemporalUnit): unit is DateUnit {
 
 /** https://tc39.es/proposal-temporal/#sec-gettemporaloverflowoption */
 export function* GetTemporalOverflowOption(options: ObjectValue): PlainEvaluator<'constrain' | 'reject'> {
-  const stringValue = Q(yield* GetOption(options, 'overflow', 'string', ['constrain', 'reject'], 'constrain'));
-  if (stringValue === 'constrain') {
-    return 'constrain';
-  }
-  return 'reject';
+  const value = Q(yield* Get(options, Value('overflow')));
+  if (value instanceof UndefinedValue) return 'constrain';
+  const stringValue = Q(yield* ToString(value)).stringValue();
+  if (stringValue === 'constrain') return 'constrain';
+  if (stringValue === 'reject') return 'reject';
+  return Throw.RangeError('overflow option is invalid ($1), only "constrain" and "reject" are accepted', stringValue);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-gettemporaldisambiguationoption */
 export function* GetTemporalDisambiguationOption(options: ObjectValue): PlainEvaluator<'compatible' | 'earlier' | 'later' | 'reject'> {
-  const stringValue = Q(yield* GetOption(options, 'disambiguation', 'string', ['compatible', 'earlier', 'later', 'reject'], 'compatible'));
+  const value = Q(yield* Get(options, Value('disambiguation')));
+  if (value instanceof UndefinedValue) return 'compatible';
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'compatible') return 'compatible';
   if (stringValue === 'earlier') return 'earlier';
   if (stringValue === 'later') return 'later';
-  return 'reject';
+  if (stringValue === 'reject') return 'reject';
+  return Throw.RangeError('disambiguation option is invalid ($1), only "compatible", "earlier", "later" and "reject" are accepted', stringValue);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-negateroundingmode */
@@ -241,47 +246,60 @@ export function NegateRoundingMode(roundingMode: RoundingMode): RoundingMode {
 export type TemporalOffsetOption = 'prefer' | 'use' | 'ignore' | 'reject';
 /** https://tc39.es/proposal-temporal/#sec-gettemporaloffsetoption */
 export function* GetTemporalOffsetOption(options: ObjectValue, fallback: TemporalOffsetOption): PlainEvaluator<TemporalOffsetOption> {
-  // step 1 to 4
-  const stringFallback = fallback;
-  const stringValue = Q(yield* GetOption(options, 'offset', 'string', ['prefer', 'use', 'ignore', 'reject'], stringFallback));
+  const value = Q(yield* Get(options, Value('offset')));
+  if (value instanceof UndefinedValue) return fallback;
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'prefer') return 'prefer';
   if (stringValue === 'use') return 'use';
   if (stringValue === 'ignore') return 'ignore';
-  return 'reject';
+  if (stringValue === 'reject') return 'reject';
+  return Throw.RangeError('offset option is invalid ($1), only "prefer", "use", "ignore" and "reject" are accepted', stringValue);
 }
 
 export type ShowCalendarNameOption = 'auto' | 'always' | 'never' | 'critical';
 /** https://tc39.es/proposal-temporal/#sec-gettemporalshowcalendarnameoption */
 export function* GetTemporalShowCalendarNameOption(options: ObjectValue): PlainEvaluator<ShowCalendarNameOption> {
-  const stringValue = Q(yield* GetOption(options, 'calendarName', 'string', ['auto', 'always', 'never', 'critical'], 'auto'));
+  const value = Q(yield* Get(options, Value('calendarName')));
+  if (value instanceof UndefinedValue) return 'auto';
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'always') return 'always';
   if (stringValue === 'never') return 'never';
   if (stringValue === 'critical') return 'critical';
-  return 'auto';
+  if (stringValue === 'auto') return 'auto';
+  return Throw.RangeError('calendarName option is invalid ($1), only "auto", "always", "never" and "critical" are accepted', stringValue);
 }
 
 export type ShowTimeZoneNameOption = 'auto' | 'never' | 'critical';
 /** https://tc39.es/proposal-temporal/#sec-gettemporalshowtimezonenameoption */
 export function* GetTemporalShowTimeZoneNameOption(options: ObjectValue): PlainEvaluator<ShowTimeZoneNameOption> {
-  const stringValue = Q(yield* GetOption(options, 'timeZoneName', 'string', ['auto', 'never', 'critical'], 'auto'));
+  const value = Q(yield* Get(options, Value('timeZoneName')));
+  if (value instanceof UndefinedValue) return 'auto';
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'never') return 'never';
   if (stringValue === 'critical') return 'critical';
-  return 'auto';
+  if (stringValue === 'auto') return 'auto';
+  return Throw.RangeError('timeZoneName option is invalid ($1), only "auto", "never" and "critical" are accepted', stringValue);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-gettemporalshowoffsetoption */
 export function* GetTemporalShowOffsetOption(options: ObjectValue): PlainEvaluator<'auto' | 'never'> {
-  const stringValue = Q(yield* GetOption(options, 'offset', 'string', ['auto', 'never'], 'auto'));
+  const value = Q(yield* Get(options, Value('offset')));
+  if (value instanceof UndefinedValue) return 'auto';
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'never') return 'never';
-  return 'auto';
+  if (stringValue === 'auto') return 'auto';
+  return Throw.RangeError('offset option is invalid ($1), only "auto" and "never" are accepted', stringValue);
 }
 
 export type DirectionOption = 'next' | 'previous';
 /** https://tc39.es/proposal-temporal/#sec-getdirectionoption */
 export function* GetDirectionOption(options: ObjectValue): PlainEvaluator<DirectionOption> {
-  const stringValue = Q(yield* GetOption(options, 'direction', 'string', ['next', 'previous'], '~required~'));
+  const value = Q(yield* Get(options, Value('direction')));
+  if (value instanceof UndefinedValue) return Throw.RangeError('direction option is required');
+  const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'next') return 'next';
-  return 'previous';
+  if (stringValue === 'previous') return 'previous';
+  return Throw.RangeError('direction option is not valid ($1), only "next" and "previous" are accepted', stringValue);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-validatetemporalroundingincrement */
@@ -361,7 +379,8 @@ export function ToSecondsStringPrecisionRecord(smallestUnit: Exclude<TimeUnit, T
   return { Precision: fractionalDigitCount, Unit: TemporalUnit.Nanosecond, Increment: 10n ** (9n - fractionalDigitCount) as 1n | 10n | 100n };
 }
 
-const table21 = [
+/** https://tc39.es/ecma262/pr/3759/#table-temporal-units */
+const table74 = [
   {
     Value: TemporalUnit.Year, Singular: 'year', Plural: 'years',
   },
@@ -399,20 +418,19 @@ export function* GetTemporalUnitValuedOption(
   key: PropertyKeyValue | string,
   defaultV: 'required' | 'unset',
 ): PlainEvaluator<TemporalUnit | 'unset' | 'auto'> {
-  // 1. Let allowedStrings be a List containing all values in the "Singular property name" and "Plural property name" columns of Table 21, except the header row.
-  const allowedStrings = table21.map<string>((row) => row.Singular).concat(table21.map((row) => row.Plural)).concat('auto');
-  const defaultValue = defaultV === 'unset' ? undefined : defaultV;
-  const value = Q(yield* GetOption(options, key, 'string', allowedStrings, defaultValue));
-  if (value === undefined) {
+  const value = Q(yield* Get(options, typeof key === 'string' ? Value(key) : key));
+  if (value instanceof UndefinedValue) {
+    if (defaultV === 'required') return Throw.RangeError('option $1 is required', key);
     return 'unset';
   }
-  if (value === 'auto') {
-    return 'auto';
+  const stringValue = Q(yield* ToString(value)).stringValue();
+  if (stringValue === 'auto') return 'auto';
+  const result = table74.find(value => stringValue === value.Plural || stringValue === value.Singular);
+  // If stringValue is not listed in the "Singular property name" or "Plural property name" columns of Table 74, throw a RangeError exception.
+  if (!result) {
+    return Throw.RangeError('option $1 does not accept value $2 (only $3 accepted)', key, stringValue, table74.map(x => x.Singular).join(', '));
   }
-  // 9. Return the value in the "Value" column of Table 21 corresponding to the row with value in its "Singular property name" or "Plural property name" column.
-  const returnValue = table21.find((row) => row.Singular === value || row.Plural === value)?.Value;
-  Assert(returnValue !== undefined);
-  return returnValue;
+  return result.Value;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-validatetemporalunitvaluedoption */
