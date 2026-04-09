@@ -131,13 +131,17 @@ export function TemporalDurationFromInternal(internalDuration: InternalDurationR
   } else if (largestUnit === TemporalUnit.Millisecond) {
     microseconds = floorDiv(nanoseconds, 1000n);
     nanoseconds = modulo(nanoseconds, 1000n);
-    milliseconds = floorDiv(microseconds, 1000n);
+    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
+    milliseconds = BigInt(Number(floorDiv(microseconds, 1000n)));
     microseconds = modulo(microseconds, 1000n);
   } else if (largestUnit === TemporalUnit.Microsecond) {
-    microseconds = floorDiv(nanoseconds, 1000n);
+    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
+    microseconds = BigInt(Number(floorDiv(nanoseconds, 1000n)));
     nanoseconds = modulo(nanoseconds, 1000n);
   } else {
     Assert(largestUnit === TemporalUnit.Nanosecond);
+    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
+    nanoseconds = BigInt(Number(nanoseconds));
   }
   return CreateTemporalDuration(BigInt(internalDuration.Date.Years), BigInt(internalDuration.Date.Months), BigInt(internalDuration.Date.Weeks), BigInt(internalDuration.Date.Days) + days * sign, hours * sign, minutes * sign, seconds * sign, milliseconds * sign, microseconds * sign, nanoseconds * sign);
 }
@@ -585,7 +589,6 @@ export function ComputeNudgeWindow(
   R2: MathematicalValue;
   StartEpochNs: EpochNanoseconds;
   EndEpochNs: EpochNanoseconds;
-  // https://github.com/tc39/ecma262/pull/3759/changes#r3045716455
   StartDuration: DateDurationRecord;
   EndDuration: DateDurationRecord;
 }> {
