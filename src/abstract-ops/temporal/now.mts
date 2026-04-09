@@ -6,26 +6,28 @@ import {
   surroundingAgent,
   nsMinInstant,
   nsMaxInstant,
+  type EpochNanoseconds,
+  type IntegralNumber,
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-hostsystemutcepochnanoseconds */
-export function HostSystemUTCEpochNanoseconds(global: ObjectValue): bigint {
+export function HostSystemUTCEpochNanoseconds(global: ObjectValue): EpochNanoseconds {
   let host = surroundingAgent.hostDefinedOptions.hostHooks?.HostSystemUTCEpochNanoseconds?.(global);
   if (host === undefined) {
-    host = BigInt(Date.now()) * BigInt(1e6);
+    host = BigInt(Date.now()) * BigInt(1e6) as EpochNanoseconds;
   }
   return clamp(nsMinInstant, host, nsMaxInstant);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-systemutcepochmilliseconds */
-export function SystemUTCEpochMilliseconds(): bigint {
+export function SystemUTCEpochMilliseconds(): IntegralNumber {
   const global = GetGlobalObject();
   const nowNs = HostSystemUTCEpochNanoseconds(global);
-  return floorDiv(nowNs, BigInt(1e6));
+  return Number(floorDiv(nowNs, BigInt(1e6)));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-systemutcepochnanoseconds */
-export function SystemUTCEpochNanoseconds(): bigint {
+export function SystemUTCEpochNanoseconds(): EpochNanoseconds {
   const global = GetGlobalObject();
   const nowNs = HostSystemUTCEpochNanoseconds(global);
   return nowNs;

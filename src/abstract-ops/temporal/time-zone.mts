@@ -6,6 +6,7 @@ import {
 } from '../date-objects.mts';
 import { isTemporalZonedDateTimeObject } from '../../intrinsics/Temporal/ZonedDateTime.mts';
 import { abs, floorDiv, modulo } from '../math.mts';
+import { Decimal } from '../../host-defined/decimal.mts';
 import {
   IsOffsetTimeZoneIdentifier, GetNamedTimeZoneEpochNanoseconds, GetUTCEpochNanoseconds, RoundingMode,
   AvailableNamedTimeZoneIdentifiers,
@@ -16,6 +17,7 @@ import {
   RoundNumberToIncrement, EpochTimeToDate, EpochTimeToEpochYear, EpochTimeToMonthInYear, CheckISODaysRange,
   FormatTimeString,
   TemporalUnit,
+  type EpochNanoseconds,
 } from './temporal.mts';
 import {
   Assert, JSStringValue, ObjectValue, Value, type PlainCompletion, Q,
@@ -29,6 +31,7 @@ import {
   MidnightTimeRecord,
   nsPerDay,
   TimeDurationFromComponents,
+  type Integer,
 } from '#self';
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getavailablenamedtimezoneidentifier
@@ -48,19 +51,19 @@ export interface TimeZoneIdentifierRecord {
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getnamedtimezonenexttransition
-export function GetNamedTimeZoneNextTransition(timeZoneIdentifier: TimeZoneIdentifier, _epochNanoseconds: bigint): bigint | null {
+export function GetNamedTimeZoneNextTransition(timeZoneIdentifier: TimeZoneIdentifier, _epochNanoseconds: EpochNanoseconds): bigint | null {
   Assert(timeZoneIdentifier === 'UTC');
   return null;
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getnamedtimezoneprevioustransition
-export function GetNamedTimeZonePreviousTransition(timeZoneIdentifier: TimeZoneIdentifier, _epochNanoseconds: bigint): bigint | null {
+export function GetNamedTimeZonePreviousTransition(timeZoneIdentifier: TimeZoneIdentifier, _epochNanoseconds: EpochNanoseconds): bigint | null {
   Assert(timeZoneIdentifier === 'UTC');
   return null;
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-formatoffsettimezoneidentifier
-export function FormatOffsetTimeZoneIdentifier(offsetMinutes: bigint, style: 'separated' | 'unseparated' = 'separated'): TimeZoneIdentifier {
+export function FormatOffsetTimeZoneIdentifier(offsetMinutes: Integer, style: 'separated' | 'unseparated' = 'separated'): TimeZoneIdentifier {
   const sign = offsetMinutes >= 0 ? '+' : '-';
   const absoluteMinutes = abs(offsetMinutes);
   const hour = floorDiv(absoluteMinutes, 60n);
@@ -70,7 +73,7 @@ export function FormatOffsetTimeZoneIdentifier(offsetMinutes: bigint, style: 'se
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-formatutcoffsetnanoseconds
-export function FormatUTCOffsetNanoseconds(offsetNanoseconds: bigint): string {
+export function FormatUTCOffsetNanoseconds(offsetNanoseconds: Integer): string {
   const sign = offsetNanoseconds >= 0 ? '+' : '-';
   const absoluteNanoseconds = abs(offsetNanoseconds);
   const hour = floorDiv(absoluteNanoseconds, BigInt(3600 * 1e9));
@@ -83,8 +86,8 @@ export function FormatUTCOffsetNanoseconds(offsetNanoseconds: bigint): string {
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-formatdatetimeutcoffsetrounded
-export function FormatDateTimeUTCOffsetRounded(offsetNanoseconds: bigint): string {
-  offsetNanoseconds = RoundNumberToIncrement(Number(offsetNanoseconds), BigInt(60 * 1e9), RoundingMode.HalfExpand);
+export function FormatDateTimeUTCOffsetRounded(offsetNanoseconds: Integer): string {
+  offsetNanoseconds = RoundNumberToIncrement(Decimal(offsetNanoseconds), BigInt(60 * 1e9), RoundingMode.HalfExpand);
   const offsetMinutes = offsetNanoseconds / BigInt(60 * 1e9);
   return FormatOffsetTimeZoneIdentifier(offsetMinutes);
 }
@@ -112,7 +115,7 @@ export function ToTemporalTimeZoneIdentifier(temporalTimeZoneLike: Value | strin
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getoffsetnanosecondsfor
-export function GetOffsetNanosecondsFor(timeZone: TimeZoneIdentifier, epochNs: bigint): bigint {
+export function GetOffsetNanosecondsFor(timeZone: TimeZoneIdentifier, epochNs: EpochNanoseconds): Integer {
   const parseResult = X(ParseTimeZoneIdentifier(timeZone));
   if (parseResult.OffsetMinutes !== undefined) {
     return parseResult.OffsetMinutes * (60n * BigInt(1e9));
@@ -121,7 +124,7 @@ export function GetOffsetNanosecondsFor(timeZone: TimeZoneIdentifier, epochNs: b
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getisodatetimefor
-export function GetISODateTimeFor(timeZone: TimeZoneIdentifier, epochNs: bigint): ISODateTimeRecord {
+export function GetISODateTimeFor(timeZone: TimeZoneIdentifier, epochNs: EpochNanoseconds): ISODateTimeRecord {
   Assert(IsValidEpochNanoseconds(epochNs));
   const offsetNanoseconds = GetOffsetNanosecondsFor(timeZone, epochNs);
   const remainderNs = modulo(epochNs, BigInt(1e6));
@@ -129,14 +132,14 @@ export function GetISODateTimeFor(timeZone: TimeZoneIdentifier, epochNs: bigint)
   const year = EpochTimeToEpochYear(epochMilliseconds);
   const month = EpochTimeToMonthInYear(epochMilliseconds) + 1n;
   const day = EpochTimeToDate(epochMilliseconds);
-  const hour = HourFromTime(epochMilliseconds);
-  const minute = MinFromTime(epochMilliseconds);
-  const second = SecFromTime(epochMilliseconds);
-  const millisecond = msFromTime(epochMilliseconds);
+  const hour = HourFromTime(Number(epochMilliseconds));
+  const minute = MinFromTime(Number(epochMilliseconds));
+  const second = SecFromTime(Number(epochMilliseconds));
+  const millisecond = msFromTime(Number(epochMilliseconds));
   const microsecond = floorDiv(remainderNs, 1000n);
   Assert(microsecond < 1000);
   const nanosecond = modulo(remainderNs, 1000n);
-  return BalanceISODateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond + offsetNanoseconds);
+  return BalanceISODateTime(year, month, day, BigInt(hour), BigInt(minute), BigInt(second), BigInt(millisecond), microsecond, nanosecond + offsetNanoseconds);
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-getepochnanosecondsfor
@@ -144,7 +147,7 @@ export function GetEpochNanosecondsFor(
   timeZone: TimeZoneIdentifier,
   isoDateTime: ISODateTimeRecord,
   disambiguation: 'compatible' | 'earlier' | 'later' | 'reject',
-): PlainCompletion<bigint> {
+): PlainCompletion<EpochNanoseconds> {
   const possibleEpochNs = Q(GetPossibleEpochNanoseconds(timeZone, isoDateTime));
   return DisambiguatePossibleEpochNanoseconds(possibleEpochNs, timeZone, isoDateTime, disambiguation);
 }
@@ -155,7 +158,7 @@ export function DisambiguatePossibleEpochNanoseconds(
   timeZone: TimeZoneIdentifier,
   isoDateTime: ISODateTimeRecord,
   disambiguation: 'compatible' | 'earlier' | 'later' | 'reject',
-): PlainCompletion<bigint> {
+): PlainCompletion<EpochNanoseconds> {
   let n = possibleEpochNs.length;
   if (n === 1) {
     return possibleEpochNs[0];
@@ -210,7 +213,7 @@ export function DisambiguatePossibleEpochNanoseconds(
 export function GetPossibleEpochNanoseconds(
   timeZone: TimeZoneIdentifier,
   isoDateTime: ISODateTimeRecord,
-): PlainCompletion<bigint[]> {
+): PlainCompletion<EpochNanoseconds[]> {
   const parseResult = X(ParseTimeZoneIdentifier(timeZone));
   let possibleEpochNanoseconds: bigint[];
   if (parseResult.OffsetMinutes !== undefined) {
@@ -244,7 +247,7 @@ export function GetPossibleEpochNanoseconds(
 export function GetStartOfDay(
   timeZone: TimeZoneIdentifier,
   isoDate: ISODateRecord,
-): PlainCompletion<bigint> {
+): PlainCompletion<EpochNanoseconds> {
   const isoDateTime = CombineISODateAndTimeRecord(isoDate, MidnightTimeRecord());
   const possibleEpochNs = Q(GetPossibleEpochNanoseconds(timeZone, isoDateTime));
   if (possibleEpochNs.length) {

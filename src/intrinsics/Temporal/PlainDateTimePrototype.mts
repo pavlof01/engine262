@@ -29,7 +29,7 @@ import {
   DifferenceTemporalPlainDateTime,
   AddDurationToDateTime,
   InterpretTemporalDateTimeFields,
-  ISODateTimeToString,
+  FormatISODateTime,
   ISODateTimeWithinLimits,
   RoundISODateTime,
   ToTemporalDateTime,
@@ -329,19 +329,19 @@ function* PlainDateTimeProto_toString([options = Value.undefined]: Arguments, { 
   if (!ISODateTimeWithinLimits(result)) {
     return Throw.RangeError('DateTime outside of range');
   }
-  return Value(ISODateTimeToString(result, plainDateTime.Calendar, precision.Precision, showCalendar));
+  return Value(FormatISODateTime(result, plainDateTime.Calendar, precision.Precision, showCalendar));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plaindatetime.prototype.tolocalestring */
 function PlainDateTimeProto_toLocaleString(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const plainDateTime = Q(thisTemporalDateTimeValue(thisValue));
-  return Value(ISODateTimeToString(plainDateTime.ISODateTime, plainDateTime.Calendar, 'auto', 'auto'));
+  return Value(FormatISODateTime(plainDateTime.ISODateTime, plainDateTime.Calendar, 'auto', 'auto'));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plaindatetime.prototype.tojson */
 function PlainDateTimeProto_toJSON(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const plainDateTime = Q(thisTemporalDateTimeValue(thisValue));
-  return Value(ISODateTimeToString(plainDateTime.ISODateTime, plainDateTime.Calendar, 'auto', 'auto'));
+  return Value(FormatISODateTime(plainDateTime.ISODateTime, plainDateTime.Calendar, 'auto', 'auto'));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plaindatetime.prototype.valueof */

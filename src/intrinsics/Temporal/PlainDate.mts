@@ -11,6 +11,7 @@ import {
   type CalendarType,
   CanonicalizeCalendar,
   ToIntegerWithTruncation,
+  type Integer,
 } from '#self';
 
 export interface TemporalPlainDateObject extends OrdinaryObject {
@@ -25,9 +26,9 @@ export function isTemporalPlainDateObject(o: Value): o is TemporalPlainDateObjec
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-iso-date-records */
 export interface ISODateRecord {
-  readonly Year: bigint;
-  readonly Month: bigint;
-  readonly Day: bigint;
+  readonly Year: Integer;
+  readonly Month: Integer;
+  readonly Day: Integer;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal.plaindate */
@@ -35,9 +36,9 @@ function* PlainDateConstructor([isoYear = Value.undefined, isoMonth = Value.unde
   if (NewTarget instanceof UndefinedValue) {
     return Throw.TypeError('Temporal.PlainDate constructor cannot be called without new');
   }
-  const y = BigInt(Q(yield* ToIntegerWithTruncation(isoYear)));
-  const m = BigInt(Q(yield* ToIntegerWithTruncation(isoMonth)));
-  const d = BigInt(Q(yield* ToIntegerWithTruncation(isoDay)));
+  const y = Q(yield* ToIntegerWithTruncation(isoYear));
+  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
+  const d = Q(yield* ToIntegerWithTruncation(isoDay));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }

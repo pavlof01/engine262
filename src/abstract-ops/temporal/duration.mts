@@ -6,12 +6,15 @@ import { ParseTemporalDurationString } from '../../parser/TemporalParser.mts';
 import {
   abs, floorDiv, modulo, remainder, truncateDiv,
 } from '../math.mts';
+import { Decimal } from '../../host-defined/decimal.mts';
 import {
   type TimeZoneIdentifier, GetUTCEpochNanoseconds, RoundingMode, ToIntegerIfIntegral,
 } from './addition.mts';
 import { CalendarDateAdd, type CalendarType, CalendarDateUntil } from './calendar.mts';
 import {
   TemporalUnit, TemporalUnitCategory, RoundNumberToIncrement, ISODateToEpochDays, type TimeUnit, Table21_LengthInNanoSeconds, type DateUnit, GetUnsignedRoundingMode, ApplyUnsignedRoundingMode, IsCalendarUnit, __IsTimeUnit, LargerOfTwoTemporalUnits, __IsDateUnit, FormatFractionalSeconds,
+  type Float64RepresentableInteger,
+  type EpochNanoseconds,
 } from './temporal.mts';
 import { GetEpochNanosecondsFor } from './time-zone.mts';
 import {
@@ -20,28 +23,30 @@ import {
   AddDaysToISODate,
   CombineISODateAndTimeRecord,
   Throw,
+  type Integer,
+  type MathematicalValue,
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-date-duration-records */
 export interface DateDurationRecord {
-  readonly Years: bigint;
-  readonly Months: bigint;
-  readonly Weeks: bigint;
-  Days: bigint;
+  readonly Years: Float64RepresentableInteger;
+  readonly Months: Float64RepresentableInteger;
+  readonly Weeks: Float64RepresentableInteger;
+  Days: Float64RepresentableInteger;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-partial-duration-records */
 export interface PartialDurationRecord {
-  readonly Years: bigint | undefined;
-  readonly Months: bigint | undefined;
-  readonly Weeks: bigint | undefined;
-  readonly Days: bigint | undefined;
-  readonly Hours: bigint | undefined;
-  readonly Minutes: bigint | undefined;
-  readonly Seconds: bigint | undefined;
-  readonly Milliseconds: bigint | undefined;
-  readonly Microseconds: bigint | undefined;
-  readonly Nanoseconds: bigint | undefined;
+  readonly Years: Float64RepresentableInteger | undefined;
+  readonly Months: Float64RepresentableInteger | undefined;
+  readonly Weeks: Float64RepresentableInteger | undefined;
+  readonly Days: Float64RepresentableInteger | undefined;
+  readonly Hours: Float64RepresentableInteger | undefined;
+  readonly Minutes: Float64RepresentableInteger | undefined;
+  readonly Seconds: Float64RepresentableInteger | undefined;
+  readonly Milliseconds: Float64RepresentableInteger | undefined;
+  readonly Microseconds: Float64RepresentableInteger | undefined;
+  readonly Nanoseconds: Float64RepresentableInteger | undefined;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-internal-duration-records */
@@ -51,7 +56,7 @@ export interface InternalDurationRecord {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-internal-duration-records */
-export type TimeDuration = bigint & { readonly TimeDuration: never };
+export type TimeDuration = Integer & { specName?: 'TimeDuration' };
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-zerodateduration */
 export function ZeroDateDuration(): DateDurationRecord {
@@ -82,7 +87,7 @@ export function TemporalDurationFromInternal(internalDuration: InternalDurationR
   let milliseconds = 0n;
   let microseconds = 0n;
   const sign = TimeDurationSign(internalDuration.Time);
-  let nanoseconds = BigInt(abs(internalDuration.Time));
+  let nanoseconds = abs(internalDuration.Time);
   if (TemporalUnitCategory(largestUnit) === 'date') {
     microseconds = floorDiv(nanoseconds, 1000n);
     nanoseconds = modulo(nanoseconds, 1000n);
@@ -134,32 +139,32 @@ export function TemporalDurationFromInternal(internalDuration: InternalDurationR
   } else {
     Assert(largestUnit === TemporalUnit.Nanosecond);
   }
-  return CreateTemporalDuration(internalDuration.Date.Years, internalDuration.Date.Months, internalDuration.Date.Weeks, internalDuration.Date.Days + days * sign, hours * sign, minutes * sign, seconds * sign, milliseconds * sign, microseconds * sign, nanoseconds * sign);
+  return CreateTemporalDuration(BigInt(internalDuration.Date.Years), BigInt(internalDuration.Date.Months), BigInt(internalDuration.Date.Weeks), BigInt(internalDuration.Date.Days) + days * sign, hours * sign, minutes * sign, seconds * sign, milliseconds * sign, microseconds * sign, nanoseconds * sign);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-createdatedurationrecord */
-export function CreateDateDurationRecord(years: bigint, months: bigint, weeks: bigint, days: bigint): PlainCompletion<DateDurationRecord> {
+export function CreateDateDurationRecord(years: Integer, months: Integer, weeks: Integer, days: Integer): PlainCompletion<DateDurationRecord> {
   if (!IsValidDuration(years, months, weeks, days, 0n, 0n, 0n, 0n, 0n, 0n)) {
     return Throw.RangeError('Duration($1, $2, $3, $4) is not a valid duration', years, months, weeks, days);
   }
   return {
-    Years: years,
-    Months: months,
-    Weeks: weeks,
-    Days: days,
+    Years: Number(years),
+    Months: Number(months),
+    Weeks: Number(weeks),
+    Days: Number(days),
   };
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-adjustdatedurationrecord */
 export function AdjustDateDurationRecord(
   dateDuration: DateDurationRecord,
-  days: bigint,
-  weeks?: bigint,
-  months?: bigint,
+  days: Integer,
+  weeks?: Integer,
+  months?: Integer,
 ): PlainCompletion<DateDurationRecord> {
-  weeks ??= dateDuration.Weeks;
-  months ??= dateDuration.Months;
-  return CreateDateDurationRecord(dateDuration.Years, months, weeks, days);
+  weeks ??= BigInt(dateDuration.Weeks);
+  months ??= BigInt(dateDuration.Months);
+  return CreateDateDurationRecord(BigInt(dateDuration.Years), months, weeks, days);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-combinedateandtimeduration */
@@ -186,19 +191,19 @@ export function* ToTemporalDuration(item: Value): ValueEvaluator<TemporalDuratio
     }
     return yield* ParseTemporalDurationString(item.stringValue());
   }
-  const result: Mutable<PartialDurationRecord> = {
-    Years: 0n,
-    Months: 0n,
-    Weeks: 0n,
-    Days: 0n,
-    Hours: 0n,
-    Microseconds: 0n,
-    Milliseconds: 0n,
-    Minutes: 0n,
-    Nanoseconds: 0n,
-    Seconds: 0n,
-  };
-  const partial = Q(yield* ToTemporalPartialDurationRecord(item));
+  const result = {
+    Years: 0,
+    Months: 0,
+    Weeks: 0,
+    Days: 0,
+    Hours: 0,
+    Microseconds: 0,
+    Milliseconds: 0,
+    Minutes: 0,
+    Nanoseconds: 0,
+    Seconds: 0,
+  } satisfies Mutable<PartialDurationRecord>;
+  const partial = Q(yield* ToPartialDurationRecord(item));
   if (partial.Years !== undefined) result.Years = partial.Years;
   if (partial.Months !== undefined) result.Months = partial.Months;
   if (partial.Weeks !== undefined) result.Weeks = partial.Weeks;
@@ -209,7 +214,7 @@ export function* ToTemporalDuration(item: Value): ValueEvaluator<TemporalDuratio
   if (partial.Milliseconds !== undefined) result.Milliseconds = partial.Milliseconds;
   if (partial.Microseconds !== undefined) result.Microseconds = partial.Microseconds;
   if (partial.Nanoseconds !== undefined) result.Nanoseconds = partial.Nanoseconds;
-  return yield* CreateTemporalDuration(result.Years!, result.Months!, result.Weeks!, result.Days!, result.Hours!, result.Minutes!, result.Seconds!, result.Milliseconds!, result.Microseconds!, result.Nanoseconds!);
+  return yield* CreateTemporalDuration(BigInt(result.Years), BigInt(result.Months), BigInt(result.Weeks), BigInt(result.Days), BigInt(result.Hours), BigInt(result.Minutes), BigInt(result.Seconds), BigInt(result.Milliseconds), BigInt(result.Microseconds), BigInt(result.Nanoseconds));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-durationsign */
@@ -261,16 +266,16 @@ export function InternalDurationSign(internalDuration: InternalDurationRecord): 
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isvalidduration */
 export function IsValidDuration(
-  years: bigint,
-  months: bigint,
-  weeks: bigint,
-  days: bigint,
-  hours: bigint,
-  minutes: bigint,
-  seconds: bigint,
-  milliseconds: bigint,
-  microseconds: bigint,
-  nanoseconds: bigint,
+  years: Integer,
+  months: Integer,
+  weeks: Integer,
+  days: Integer,
+  hours: Integer,
+  minutes: Integer,
+  seconds: Integer,
+  milliseconds: Integer,
+  microseconds: Integer,
+  nanoseconds: Integer,
 ): boolean {
   let sign = 0;
   for (const v of [years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds]) {
@@ -283,26 +288,14 @@ export function IsValidDuration(
       sign = 1;
     }
   }
-  if (abs(years) >= 2 ** 32) {
-    return false;
-  }
-  if (abs(months) >= 2 ** 32) {
-    return false;
-  }
-  if (abs(weeks) >= 2 ** 32) {
-    return false;
-  }
-  // Let normalizedSeconds be days × 86,400 + hours × 3600 + minutes × 60 + seconds + ℝ(𝔽(milliseconds)) × 10**-3 + ℝ(𝔽(microseconds)) × 10**-6 + ℝ(𝔽(nanoseconds)) × 10**-9.
-  // If abs(normalizedSeconds) ≥ 2**53, return false.
-  let normalizedSeconds = days * 86400n + hours * 3600n + minutes * 60n + seconds;
-  if (abs(normalizedSeconds) >= 2 ** 53) {
-    return false;
-  }
-  normalizedSeconds *= BigInt(1e9); // Convert to nanoseconds
-  normalizedSeconds += milliseconds * 1000000n + microseconds * 1000n + nanoseconds;
-  if (abs(normalizedSeconds) >= BigInt(2 ** 53) * BigInt(1e9)) {
-    return false;
-  }
+  if (abs(years) >= 2 ** 32) return false;
+  if (abs(months) >= 2 ** 32) return false;
+  if (abs(weeks) >= 2 ** 32) return false;
+  const b1e9 = BigInt(1e9);
+  // 6. Let normalizedNanoseconds be days × 86,400 × 10**9 + hours × 3600 × 10**9 + minutes × 60 × 10**9 + seconds × 10**9 + ℝ(𝔽(milliseconds)) × 10**6 + ℝ(𝔽(microseconds)) × 10**3 + ℝ(𝔽(nanoseconds)).
+  // If abs(normalizedNanoseconds) ≥ 2**53, return false.
+  const normalizedNanoseconds = days * 86400n * b1e9 + hours * 3600n * b1e9 + minutes * 60n * b1e9 + seconds * b1e9 + BigInt(Number(milliseconds)) * BigInt(1e6) + BigInt(Number(microseconds)) * BigInt(1e3) + BigInt(Number(nanoseconds));
+  if (abs(normalizedNanoseconds) >= BigInt(1e9) * (2n ** 53n)) return false;
   return true;
 }
 
@@ -320,8 +313,8 @@ export function DefaultTemporalLargestUnit(duration: TemporalDurationObject): Te
   return TemporalUnit.Nanosecond;
 }
 
-/** https://tc39.es/proposal-temporal/#sec-temporal-totemporalpartialdurationrecord */
-export function* ToTemporalPartialDurationRecord(temporalDurationLike: Value): PlainEvaluator<PartialDurationRecord> {
+/** https://tc39.es/ecma262/pr/3759/#sec-topartialdurationrecord */
+export function* ToPartialDurationRecord(temporalDurationLike: Value): PlainEvaluator<PartialDurationRecord> {
   if (!(temporalDurationLike instanceof ObjectValue)) {
     return Throw.TypeError('Cannot convert $1 to TemporalPartialDurationRecord', temporalDurationLike);
   }
@@ -339,43 +332,43 @@ export function* ToTemporalPartialDurationRecord(temporalDurationLike: Value): P
   };
   const days = Q(yield* Get(temporalDurationLike, Value('days')));
   if (days !== Value.undefined) {
-    result.Days = BigInt(Q(yield* ToIntegerIfIntegral(days)));
+    result.Days = Number(Q(yield* ToIntegerIfIntegral(days)));
   }
   const hours = Q(yield* Get(temporalDurationLike, Value('hours')));
   if (hours !== Value.undefined) {
-    result.Hours = BigInt(Q(yield* ToIntegerIfIntegral(hours)));
+    result.Hours = Number(Q(yield* ToIntegerIfIntegral(hours)));
   }
   const microseconds = Q(yield* Get(temporalDurationLike, Value('microseconds')));
   if (microseconds !== Value.undefined) {
-    result.Microseconds = BigInt(Q(yield* ToIntegerIfIntegral(microseconds)));
+    result.Microseconds = Number(Q(yield* ToIntegerIfIntegral(microseconds)));
   }
   const milliseconds = Q(yield* Get(temporalDurationLike, Value('milliseconds')));
   if (milliseconds !== Value.undefined) {
-    result.Milliseconds = BigInt(Q(yield* ToIntegerIfIntegral(milliseconds)));
+    result.Milliseconds = Number(Q(yield* ToIntegerIfIntegral(milliseconds)));
   }
   const minutes = Q(yield* Get(temporalDurationLike, Value('minutes')));
   if (minutes !== Value.undefined) {
-    result.Minutes = BigInt(Q(yield* ToIntegerIfIntegral(minutes)));
+    result.Minutes = Number(Q(yield* ToIntegerIfIntegral(minutes)));
   }
   const months = Q(yield* Get(temporalDurationLike, Value('months')));
   if (months !== Value.undefined) {
-    result.Months = BigInt(Q(yield* ToIntegerIfIntegral(months)));
+    result.Months = Number(Q(yield* ToIntegerIfIntegral(months)));
   }
   const nanoseconds = Q(yield* Get(temporalDurationLike, Value('nanoseconds')));
   if (nanoseconds !== Value.undefined) {
-    result.Nanoseconds = BigInt(Q(yield* ToIntegerIfIntegral(nanoseconds)));
+    result.Nanoseconds = Number(Q(yield* ToIntegerIfIntegral(nanoseconds)));
   }
   const seconds = Q(yield* Get(temporalDurationLike, Value('seconds')));
   if (seconds !== Value.undefined) {
-    result.Seconds = BigInt(Q(yield* ToIntegerIfIntegral(seconds)));
+    result.Seconds = Number(Q(yield* ToIntegerIfIntegral(seconds)));
   }
   const weeks = Q(yield* Get(temporalDurationLike, Value('weeks')));
   if (weeks !== Value.undefined) {
-    result.Weeks = BigInt(Q(yield* ToIntegerIfIntegral(weeks)));
+    result.Weeks = Number(Q(yield* ToIntegerIfIntegral(weeks)));
   }
   const years = Q(yield* Get(temporalDurationLike, Value('years')));
   if (years !== Value.undefined) {
-    result.Years = BigInt(Q(yield* ToIntegerIfIntegral(years)));
+    result.Years = Number(Q(yield* ToIntegerIfIntegral(years)));
   }
 
   if (years === Value.undefined
@@ -395,16 +388,16 @@ export function* ToTemporalPartialDurationRecord(temporalDurationLike: Value): P
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-createtemporalduration */
 export function* CreateTemporalDuration(
-  years: bigint,
-  months: bigint,
-  weeks: bigint,
-  days: bigint,
-  hours: bigint,
-  minutes: bigint,
-  seconds: bigint,
-  milliseconds: bigint,
-  microseconds: bigint,
-  nanoseconds: bigint,
+  years: Integer,
+  months: Integer,
+  weeks: Integer,
+  days: Integer,
+  hours: Integer,
+  minutes: Integer,
+  seconds: Integer,
+  milliseconds: Integer,
+  microseconds: Integer,
+  nanoseconds: Integer,
   newTarget?: FunctionObject,
 ): ValueEvaluator<TemporalDurationObject> {
   if (!IsValidDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds)) {
@@ -457,12 +450,12 @@ export function CreateNegatedTemporalDuration(duration: TemporalDurationObject):
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-timedurationfromcomponents */
 export function TimeDurationFromComponents(
-  hours: bigint,
-  minutes: bigint,
-  seconds: bigint,
-  milliseconds: bigint,
-  microseconds: bigint,
-  nanoseconds: bigint,
+  hours: Integer,
+  minutes: Integer,
+  seconds: Integer,
+  milliseconds: Integer,
+  microseconds: Integer,
+  nanoseconds: Integer,
 ): TimeDuration {
   minutes += hours * 60n;
   seconds += minutes * 60n;
@@ -470,29 +463,29 @@ export function TimeDurationFromComponents(
   microseconds += milliseconds * 1000n;
   nanoseconds += microseconds * 1000n;
   Assert(abs(nanoseconds) <= maxTimeDuration);
-  return nanoseconds as TimeDuration;
+  return nanoseconds;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-addtimeduration */
 export function AddTimeDuration(one: TimeDuration, two: TimeDuration): PlainCompletion<TimeDuration> {
-  const result = BigInt(one) + BigInt(two);
+  const result = one + two;
   if (abs(result) > maxTimeDuration) {
     return Throw.RangeError('Invalid duration');
   }
-  return result as TimeDuration;
+  return result;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-add24hourdaystotimeduration */
-export function Add24HourDaysToTimeDuration(d: TimeDuration, days: bigint): PlainCompletion<TimeDuration> {
+export function Add24HourDaysToTimeDuration(d: TimeDuration, days: Integer): PlainCompletion<TimeDuration> {
   const result = BigInt(d) + BigInt(days) * BigInt(nsPerDay);
   if (abs(result) > maxTimeDuration) {
     return Throw.RangeError('Invalid duration');
   }
-  return result as TimeDuration;
+  return result;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-addtimedurationtoepochnanoseconds */
-export function AddTimeDurationToEpochNanoseconds(d: TimeDuration, epochNs: bigint): bigint {
+export function AddTimeDurationToEpochNanoseconds(d: TimeDuration, epochNs: EpochNanoseconds): EpochNanoseconds {
   return epochNs + BigInt(d);
 }
 
@@ -508,23 +501,23 @@ export function CompareTimeDuration(one: TimeDuration, two: TimeDuration): -1 | 
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-timedurationfromepochnanosecondsdifference */
-export function TimeDurationFromEpochNanosecondsDifference(one: bigint, two: bigint): TimeDuration {
+export function TimeDurationFromEpochNanosecondsDifference(one: EpochNanoseconds, two: EpochNanoseconds): TimeDuration {
   const result = one - two;
   Assert(abs(result) <= maxTimeDuration);
-  return result as TimeDuration;
+  return result;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-roundtimedurationtoincrement */
 export function RoundTimeDurationToIncrement(
   d: TimeDuration,
-  increment: bigint,
+  increment: Integer,
   roundingMode: RoundingMode,
 ): PlainCompletion<TimeDuration> {
-  const rounded = RoundNumberToIncrement(Number(d), increment, roundingMode);
+  const rounded = RoundNumberToIncrement(Decimal(d), increment, roundingMode);
   if (abs(rounded) > maxTimeDuration) {
     return Throw.RangeError('Invalid duration');
   }
-  return rounded as TimeDuration;
+  return rounded;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-timedurationsign */
@@ -539,22 +532,22 @@ export function TimeDurationSign(d: TimeDuration): -1n | 0n | 1n {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-datedurationdays */
-export function DateDurationDays(dateDuration: DateDurationRecord, plainRelativeTo: TemporalPlainDateObject): PlainCompletion<bigint> {
+export function DateDurationDays(dateDuration: DateDurationRecord, plainRelativeTo: TemporalPlainDateObject): PlainCompletion<Integer> {
   const yearsMonthsWeeksDuration = X(AdjustDateDurationRecord(dateDuration, 0n));
   if (DateDurationSign(yearsMonthsWeeksDuration) === 0n) {
-    return dateDuration.Days;
+    return BigInt(dateDuration.Days);
   }
   const later = Q(CalendarDateAdd(plainRelativeTo.Calendar, plainRelativeTo.ISODate, yearsMonthsWeeksDuration, 'constrain'));
   const epochDays1 = ISODateToEpochDays(plainRelativeTo.ISODate.Year, plainRelativeTo.ISODate.Month - 1n, plainRelativeTo.ISODate.Day);
   const epochDays2 = ISODateToEpochDays(later.Year, later.Month - 1n, later.Day);
   const yearsMonthsWeeksInDays = epochDays2 - epochDays1;
-  return dateDuration.Days + yearsMonthsWeeksInDays;
+  return BigInt(dateDuration.Days) + yearsMonthsWeeksInDays;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-roundtimeduration */
 export function RoundTimeDuration(
   timeDuration: TimeDuration,
-  increment: bigint,
+  increment: Integer,
   unit: TimeUnit,
   roundingMode: RoundingMode,
 ): PlainCompletion<TimeDuration> {
@@ -563,17 +556,16 @@ export function RoundTimeDuration(
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-totaltimeduration */
-export function TotalTimeDuration(timeDuration: TimeDuration, unit: TimeUnit | TemporalUnit.Day): number {
+export function TotalTimeDuration(timeDuration: TimeDuration, unit: TimeUnit | TemporalUnit.Day): MathematicalValue {
   const divisor = Table21_LengthInNanoSeconds[unit];
-  // TODO(temporal): Floating point problem
   // 2. NOTE: The following step cannot be implemented directly using floating-point arithmetic when 𝔽(timeDuration) is not a safe integer. The division can be implemented in C++ with the __float128 type if the compiler supports it, or with software emulation such as in the SoftFP library.
-  return Number(timeDuration) / Number(divisor);
+  return Decimal(timeDuration).divide(divisor);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-duration-nudge-result-records */
 export interface DurationNudgeResultRecord {
   readonly Duration: InternalDurationRecord;
-  readonly NudgedEpochNs: bigint;
+  readonly NudgedEpochNs: EpochNanoseconds;
   readonly DidExpandCalendarUnit: boolean;
 }
 
@@ -581,68 +573,68 @@ export interface DurationNudgeResultRecord {
 export function ComputeNudgeWindow(
   sign: -1n | 1n,
   duration: InternalDurationRecord,
-  originEpochNs: bigint,
+  originEpochNs: EpochNanoseconds,
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier | undefined,
   calendar: CalendarType,
-  increment: bigint,
+  increment: Integer,
   unit: DateUnit,
   additionalShift: boolean,
 ): PlainCompletion<{
-  R1: number;
-  R2: number;
-  StartEpochNs: bigint;
-  EndEpochNs: bigint;
+  R1: MathematicalValue;
+  R2: MathematicalValue;
+  StartEpochNs: EpochNanoseconds;
+  EndEpochNs: EpochNanoseconds;
   // https://github.com/tc39/ecma262/pull/3759/changes#r3045716455
   StartDuration: DateDurationRecord;
   EndDuration: DateDurationRecord;
 }> {
-  let r1: bigint;
-  let r2: bigint;
+  let r1: MathematicalValue;
+  let r2: MathematicalValue;
   let startDuration;
   let endDuration;
   if (unit === TemporalUnit.Year) {
-    const years = RoundNumberToIncrement(Number(duration.Date.Years), increment, RoundingMode.Trunc);
+    const years = RoundNumberToIncrement(Decimal(duration.Date.Years), increment, RoundingMode.Trunc);
     if (!additionalShift) {
-      r1 = years;
+      r1 = Decimal(years);
     } else {
-      r1 = years + increment * sign;
+      r1 = Decimal(years + increment * sign);
     }
-    r2 = r1 + increment * sign;
-    startDuration = Q(CreateDateDurationRecord(r1, 0n, 0n, 0n));
-    endDuration = Q(CreateDateDurationRecord(r2, 0n, 0n, 0n));
+    r2 = r1.add(increment * sign);
+    startDuration = Q(CreateDateDurationRecord(r1.toBigInt(), 0n, 0n, 0n));
+    endDuration = Q(CreateDateDurationRecord(r2.toBigInt(), 0n, 0n, 0n));
   } else if (unit === TemporalUnit.Month) {
-    const months = RoundNumberToIncrement(Number(duration.Date.Months), increment, RoundingMode.Trunc);
+    const months = RoundNumberToIncrement(Decimal(duration.Date.Months), increment, RoundingMode.Trunc);
     if (!additionalShift) {
-      r1 = months;
+      r1 = Decimal(months);
     } else {
-      r1 = months + increment * sign;
+      r1 = Decimal(months + increment * sign);
     }
-    r2 = r1 + increment * sign;
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r1));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r2));
+    r2 = r1.add(increment * sign);
+    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r1.toBigInt()));
+    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r2.toBigInt()));
   } else if (unit === TemporalUnit.Week) {
     const yearsMonths = X(AdjustDateDurationRecord(duration.Date, 0n, 0n));
     const weeksStart = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, yearsMonths, 'constrain'));
-    const weeksEnd = AddDaysToISODate(weeksStart, duration.Date.Days);
+    const weeksEnd = AddDaysToISODate(weeksStart, BigInt(duration.Date.Days));
     const untilResult = CalendarDateUntil(calendar, weeksStart, weeksEnd, TemporalUnit.Week);
-    const weeks = RoundNumberToIncrement(Number(duration.Date.Weeks + untilResult.Weeks), increment, RoundingMode.Trunc);
-    r1 = weeks;
-    r2 = weeks + increment * sign;
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r1));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r2));
+    const weeks = RoundNumberToIncrement(Decimal(duration.Date.Weeks + untilResult.Weeks), increment, RoundingMode.Trunc);
+    r1 = Decimal(weeks);
+    r2 = r1.add(increment * sign);
+    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r1.toBigInt()));
+    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r2.toBigInt()));
   } else {
     Assert(unit === TemporalUnit.Day);
-    const days = RoundNumberToIncrement(Number(duration.Date.Days), increment, RoundingMode.Trunc);
-    r1 = days;
-    r2 = days + increment * sign;
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, r1));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, r2));
+    const days = RoundNumberToIncrement(Decimal(duration.Date.Days), increment, RoundingMode.Trunc);
+    r1 = Decimal(days);
+    r2 = r1.add(increment * sign);
+    startDuration = Q(AdjustDateDurationRecord(duration.Date, r1.toBigInt()));
+    endDuration = Q(AdjustDateDurationRecord(duration.Date, r2.toBigInt()));
   }
-  if (sign === 1n) Assert(r1 >= 0 && r1 < r2);
-  if (sign === -1n) Assert(r1 <= 0 && r1 > r2);
+  if (sign === 1n) Assert(r1.greaterThanOrEqual(0) && r1.lessThan(r2));
+  if (sign === -1n) Assert(r1.lessThanOrEqual(0) && r1.greaterThan(r2));
   let startEpochNs;
-  if (r1 === 0n) {
+  if (r1.equals(0)) {
     startEpochNs = originEpochNs;
   } else {
     const start = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, startDuration, 'constrain'));
@@ -662,8 +654,8 @@ export function ComputeNudgeWindow(
     endEpochNs = Q(GetEpochNanosecondsFor(timeZone, endDateTime, 'compatible'));
   }
   return {
-    R1: Number(r1),
-    R2: Number(r2),
+    R1: r1,
+    R2: r2,
     StartEpochNs: startEpochNs,
     EndEpochNs: endEpochNs,
     StartDuration: startDuration,
@@ -675,15 +667,15 @@ export function ComputeNudgeWindow(
 export function NudgeToCalendarUnit(
   sign: -1n | 1n,
   duration: InternalDurationRecord,
-  originEpochNs: bigint,
-  destEpochNs: bigint,
+  originEpochNs: EpochNanoseconds,
+  destEpochNs: EpochNanoseconds,
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier | undefined,
   calendar: CalendarType,
-  increment: bigint,
+  increment: Integer,
   unit: DateUnit,
   roundingMode: RoundingMode,
-): PlainCompletion<{ NudgeResult: DurationNudgeResultRecord; Total: number }> {
+): PlainCompletion<{ NudgeResult: DurationNudgeResultRecord; Total: MathematicalValue }> {
   let didExpandCalendarUnit = false;
   let nudgeWindow = Q(ComputeNudgeWindow(sign, duration, originEpochNs, isoDateTime, timeZone, calendar, increment, unit, false));
   let startEpochNs = nudgeWindow.StartEpochNs;
@@ -706,23 +698,22 @@ export function NudgeToCalendarUnit(
   const startDuration = nudgeWindow.StartDuration;
   const endDuration = nudgeWindow.EndDuration;
   Assert(startEpochNs !== endEpochNs);
-  // TODO(temporal): Floating point problem
-  const progress = Number(destEpochNs - startEpochNs) / Number(endEpochNs - startEpochNs);
-  const total = r1 + progress * Number(increment) * Number(sign);
+  const progress = Decimal(destEpochNs - startEpochNs).divide(endEpochNs - startEpochNs);
+  const total = r1.add(progress.multiply(increment * sign));
   // 16. NOTE: The above two steps cannot be implemented directly using floating-point arithmetic. This division can be implemented as if expressing total as the quotient of two time durations (which may not be safe integers), performing all other calculations before the division, and finally performing one division operation with a floating-point result for total. The division can be implemented in C++ with the __float128 type if the compiler supports it, or with software emulation such as in the SoftFP library.
-  Assert(0 <= progress && progress <= 1);
+  Assert(progress.greaterThanOrEqual(0) && progress.lessThanOrEqual(1));
   const isNegative = sign < 0 ? 'negative' : 'positive';
   const unsignedRoundingMode = GetUnsignedRoundingMode(roundingMode, isNegative);
-  let roundedUnit;
-  if (progress === 1) {
-    roundedUnit = abs(r2);
+  let roundedUnit: MathematicalValue;
+  if (progress.equals(1)) {
+    roundedUnit = r2.abs();
   } else {
-    Assert(abs(r1) <= abs(total) && abs(total) <= abs(r2));
-    roundedUnit = ApplyUnsignedRoundingMode(abs(total), abs(r1), abs(r2), unsignedRoundingMode);
+    Assert(r1.abs().lessThanOrEqual(total.abs()) && total.abs().lessThanOrEqual(r2.abs()));
+    roundedUnit = ApplyUnsignedRoundingMode(total.abs(), r1.abs(), r2.abs(), unsignedRoundingMode);
   }
   let resultDuration;
   let nudgedEpochNs;
-  if (roundedUnit === abs(r2)) {
+  if (roundedUnit.equals(r2.abs())) {
     didExpandCalendarUnit = true;
     resultDuration = endDuration;
     nudgedEpochNs = endEpochNs;
@@ -730,7 +721,7 @@ export function NudgeToCalendarUnit(
     resultDuration = startDuration;
     nudgedEpochNs = startEpochNs;
   }
-  resultDuration = CombineDateAndTimeDuration(resultDuration, 0n as TimeDuration);
+  resultDuration = CombineDateAndTimeDuration(resultDuration, 0n);
   const nudgeResult: DurationNudgeResultRecord = {
     Duration: resultDuration,
     NudgedEpochNs: nudgedEpochNs,
@@ -746,7 +737,7 @@ export function NudgeToZonedTime(
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier,
   calendar: CalendarType,
-  increment: bigint,
+  increment: Integer,
   unit: TimeUnit,
   roundingMode: RoundingMode,
 ): PlainCompletion<DurationNudgeResultRecord> {
@@ -760,9 +751,9 @@ export function NudgeToZonedTime(
   Assert(TimeDurationSign(daySpan) === sign);
   const unitLength = Table21_LengthInNanoSeconds[unit];
   let roundedTimeDuration = Q(RoundTimeDurationToIncrement(duration.Time, increment * unitLength, roundingMode));
-  const beyondDaySpan = X(AddTimeDuration(roundedTimeDuration, (-daySpan) as TimeDuration));
+  const beyondDaySpan = X(AddTimeDuration(roundedTimeDuration, -daySpan));
   let didRoundBeyondDay;
-  let dayDelta: bigint;
+  let dayDelta: Integer;
   let nudgedEpochNs;
   if (TimeDurationSign(beyondDaySpan) !== -sign) {
     didRoundBeyondDay = true;
@@ -774,7 +765,7 @@ export function NudgeToZonedTime(
     dayDelta = 0n;
     nudgedEpochNs = AddTimeDurationToEpochNanoseconds(roundedTimeDuration, startEpochNs);
   }
-  const dateDuration = X(AdjustDateDurationRecord(duration.Date, duration.Date.Days + dayDelta));
+  const dateDuration = X(AdjustDateDurationRecord(duration.Date, BigInt(duration.Date.Days) + dayDelta));
   const resultDuration = CombineDateAndTimeDuration(dateDuration, roundedTimeDuration);
   return {
     Duration: resultDuration,
@@ -786,18 +777,18 @@ export function NudgeToZonedTime(
 /** https://tc39.es/proposal-temporal/#sec-temporal-nudgetodayortime */
 export function NudgeToDayOrTime(
   duration: InternalDurationRecord,
-  destEpochNs: bigint,
+  destEpochNs: EpochNanoseconds,
   largestUnit: TemporalUnit,
-  increment: bigint,
+  increment: Integer,
   smallestUnit: TimeUnit | TemporalUnit.Day,
   roundingMode: RoundingMode,
 ): PlainCompletion<DurationNudgeResultRecord> {
-  const timeDuration = X(Add24HourDaysToTimeDuration(duration.Time, duration.Date.Days));
+  const timeDuration = X(Add24HourDaysToTimeDuration(duration.Time, BigInt(duration.Date.Days)));
   const unitLength = Table21_LengthInNanoSeconds[smallestUnit];
   const roundedTime = Q(RoundTimeDurationToIncrement(timeDuration, unitLength * increment, roundingMode));
-  const diffTime = X(AddTimeDuration(roundedTime, (-timeDuration) as TimeDuration));
-  const wholeDays = BigInt(Math.trunc(TotalTimeDuration(timeDuration, TemporalUnit.Day)));
-  const roundedWholeDays = BigInt(Math.trunc(TotalTimeDuration(roundedTime, TemporalUnit.Day)));
+  const diffTime = X(AddTimeDuration(roundedTime, -timeDuration));
+  const wholeDays = TotalTimeDuration(timeDuration, TemporalUnit.Day).truncate().toBigInt();
+  const roundedWholeDays = TotalTimeDuration(roundedTime, TemporalUnit.Day).truncate().toBigInt();
   const dayDelta = roundedWholeDays - wholeDays;
   let dayDeltaSign: -1n | 0n | 1n;
   if (dayDelta < 0) dayDeltaSign = -1n;
@@ -809,7 +800,7 @@ export function NudgeToDayOrTime(
   let remainder = roundedTime;
   if (TemporalUnitCategory(largestUnit) === 'date') {
     days = roundedWholeDays;
-    remainder = X(AddTimeDuration(roundedTime, TimeDurationFromComponents(-roundedWholeDays * HoursPerDay, 0n, 0n, 0n, 0n, 0n)));
+    remainder = X(AddTimeDuration(roundedTime, TimeDurationFromComponents(-roundedWholeDays * BigInt(HoursPerDay), 0n, 0n, 0n, 0n, 0n)));
   }
   const dateDuration = X(AdjustDateDurationRecord(duration.Date, days));
   const resultDuration = CombineDateAndTimeDuration(dateDuration, remainder);
@@ -824,7 +815,7 @@ export function NudgeToDayOrTime(
 export function BubbleRelativeDuration(
   sign: -1n | 1n,
   duration: InternalDurationRecord,
-  nudgedEpochNs: bigint,
+  nudgedEpochNs: EpochNanoseconds,
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier | undefined,
   calendar: CalendarType,
@@ -849,14 +840,14 @@ export function BubbleRelativeDuration(
     if (unit !== TemporalUnit.Week || largestUnit === TemporalUnit.Week) {
       let endDuration: DateDurationRecord;
       if (unit === TemporalUnit.Year) {
-        const years = duration.Date.Years + sign;
+        const years = BigInt(duration.Date.Years) + sign;
         endDuration = Q(CreateDateDurationRecord(years, 0n, 0n, 0n));
       } else if (unit === TemporalUnit.Month) {
-        const months = duration.Date.Months + sign;
+        const months = BigInt(duration.Date.Months) + sign;
         endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, months));
       } else {
         Assert(unit === TemporalUnit.Week);
-        const weeks = duration.Date.Weeks + sign;
+        const weeks = BigInt(duration.Date.Weeks) + sign;
         endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, weeks));
       }
       const end = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, endDuration, 'constrain'));
@@ -873,7 +864,7 @@ export function BubbleRelativeDuration(
       else if (beyondEnd > 0) beyondEndSign = 1n;
       else beyondEndSign = 0n;
       if (beyondEndSign !== -sign) {
-        duration = CombineDateAndTimeDuration(endDuration, 0n as TimeDuration);
+        duration = CombineDateAndTimeDuration(endDuration, 0n);
       } else {
         done = true;
       }
@@ -886,13 +877,13 @@ export function BubbleRelativeDuration(
 /** https://tc39.es/proposal-temporal/#sec-temporal-roundrelativeduration */
 export function RoundRelativeDuration(
   duration: InternalDurationRecord,
-  originEpochNs: bigint,
-  destEpochNs: bigint,
+  originEpochNs: EpochNanoseconds,
+  destEpochNs: EpochNanoseconds,
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier | undefined,
   calendar: CalendarType,
   largestUnit: TemporalUnit,
-  increment: bigint,
+  increment: Integer,
   smallestUnit: TemporalUnit,
   roundingMode: RoundingMode,
 ): PlainCompletion<InternalDurationRecord> {
@@ -932,28 +923,30 @@ export function RoundRelativeDuration(
 /** https://tc39.es/proposal-temporal/#sec-temporal-totalrelativeduration */
 export function TotalRelativeDuration(
   duration: InternalDurationRecord,
-  originEpochNs: bigint,
-  destEpochNs: bigint,
+  originEpochNs: EpochNanoseconds,
+  destEpochNs: EpochNanoseconds,
   isoDateTime: ISODateTimeRecord,
   timeZone: TimeZoneIdentifier | undefined,
   calendar: CalendarType,
   unit: TemporalUnit,
-): PlainCompletion<number> {
+): PlainCompletion<MathematicalValue> {
   if (IsCalendarUnit(unit) || (timeZone !== undefined && unit === TemporalUnit.Day)) {
-    const sign = InternalDurationSign(duration);
+    let sign: -1n | 1n;
+    if (InternalDurationSign(duration) < 0) sign = -1n;
+    else sign = 1n;
     // https://github.com/tc39/proposal-temporal/issues/3131
-    const record = Q(NudgeToCalendarUnit(sign as 1n, duration, originEpochNs, destEpochNs, isoDateTime, timeZone, calendar, 1n, unit, RoundingMode.Trunc));
+    const record = Q(NudgeToCalendarUnit(sign, duration, originEpochNs, destEpochNs, isoDateTime, timeZone, calendar, 1n, unit, RoundingMode.Trunc));
     return record.Total;
   }
   __ts_cast__<Exclude<TemporalUnit, TemporalUnit.Day | TemporalUnit.Month | TemporalUnit.Week>>(unit);
-  const timeDuration = X(Add24HourDaysToTimeDuration(duration.Time, duration.Date.Days));
+  const timeDuration = X(Add24HourDaysToTimeDuration(duration.Time, BigInt(duration.Date.Days)));
   return TotalTimeDuration(timeDuration, unit);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-temporaldurationtostring */
 export function TemporalDurationToString(
   duration: TemporalDurationObject,
-  precision: number | 'auto',
+  precision: Integer | 'auto',
 ): string {
   const sign = DurationSign(duration);
   let datePart = '';
@@ -1001,9 +994,9 @@ export function* AddDurations(
   duration: TemporalDurationObject,
   _other: Value,
 ): ValueEvaluator<TemporalDurationObject> {
-  const other = Q(yield* ToTemporalDuration(_other));
+  let other = Q(yield* ToTemporalDuration(_other));
   if (operation === 'subtract') {
-    _other = CreateNegatedTemporalDuration(other);
+    other = CreateNegatedTemporalDuration(other);
   }
   const largestUnit1 = DefaultTemporalLargestUnit(duration);
   const largestUnit2 = DefaultTemporalLargestUnit(other);

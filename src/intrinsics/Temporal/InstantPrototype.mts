@@ -46,6 +46,7 @@ import {
   X,
   type Arguments,
   type FunctionCallContext,
+  type Integer,
   type PlainCompletion,
   type Realm,
   type ValueEvaluator,
@@ -111,20 +112,20 @@ function* InstantProto_round([roundTo = Value.undefined]: Arguments, { thisValue
   const roundingMode = Q(yield* GetRoundingModeOption(roundTo, RoundingMode.HalfExpand));
   const smallestUnit = Q(yield* GetTemporalUnitValuedOption(roundTo, 'smallestUnit', 'required'));
   Q(ValidateTemporalUnitValue(smallestUnit, 'time'));
-  let maximum: bigint;
+  let maximum: Integer;
   if (smallestUnit === TemporalUnit.Hour) {
-    maximum = HoursPerDay;
+    maximum = BigInt(HoursPerDay);
   } else if (smallestUnit === TemporalUnit.Minute) {
-    maximum = MinutesPerHour * HoursPerDay;
+    maximum = BigInt(MinutesPerHour * HoursPerDay);
   } else if (smallestUnit === TemporalUnit.Second) {
-    maximum = SecondsPerMinute * MinutesPerHour * HoursPerDay;
+    maximum = BigInt(SecondsPerMinute * MinutesPerHour * HoursPerDay);
   } else if (smallestUnit === TemporalUnit.Millisecond) {
-    maximum = msPerDay;
+    maximum = BigInt(msPerDay);
   } else if (smallestUnit === TemporalUnit.Microsecond) {
-    maximum = BigInt(1e3) * msPerDay;
+    maximum = BigInt(1e3) * BigInt(msPerDay);
   } else {
     Assert(smallestUnit === TemporalUnit.Nanosecond);
-    maximum = nsPerDay;
+    maximum = BigInt(nsPerDay);
   }
   Q(ValidateTemporalRoundingIncrement(roundingIncrement, maximum, true));
   const roundedNs = RoundEpochNanoseconds(instant.EpochNanoseconds, roundingIncrement, smallestUnit, roundingMode);

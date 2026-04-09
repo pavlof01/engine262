@@ -4,10 +4,20 @@ export function truncateDiv(x: bigint, y: bigint): bigint {
   return x / y;
 }
 
+export function truncate(x: number) {
+  const xd = Math.trunc(x);
+  if (Object.is(xd, -0)) return 0;
+  return xd;
+}
+
 /** https://tc39.es/ecma262/#eqn-floor */
 export function floorDiv(x: bigint, y: bigint): bigint {
-  // floor(x) = x - (x modulo 1).
-  return (x - remainder(x, y)) / y;
+  // Return floor(x / y) (round toward -infinity).
+  const q = x / y; // truncating division toward 0
+  if (x % y !== 0n && ((x < 0n) !== (y < 0n))) {
+    return q - 1n;
+  }
+  return q;
 }
 
 /** https://tc39.es/ecma262/#eqn-abs */
@@ -22,7 +32,7 @@ export function abs(x: bigint | number): bigint | number {
 }
 
 /** https://tc39.es/ecma262/#clamping */
-export function clamp(lower: bigint, x: bigint, upper: bigint): bigint
+export function clamp<T extends bigint>(lower: T, x: T, upper: T): T
 export function clamp(lower: number, x: number, upper: number): number
 export function clamp(lower: number | bigint, x: number | bigint, upper: number | bigint): number | bigint {
   if (x < lower) return lower;
@@ -53,8 +63,10 @@ export function remainder(x: bigint, y: bigint): bigint
 export function remainder(x: number, y: number): number
 export function remainder(x: number | bigint, y: number | bigint): number | bigint {
   if (typeof x === 'bigint' && typeof y === 'bigint') {
-    return (x > 0 ? 1n : -1n) * abs(modulo(x, y));
+    return (x >= 0 ? modulo(abs(x), y) : -modulo(abs(x), y));
+  } else if (typeof x === 'number' && typeof y === 'number') {
+    return (x >= 0 ? modulo(Math.abs(x), y) : -modulo(Math.abs(x), y));
   } else {
-    return Math.sign(x as number) * Math.abs(modulo(x as number, y as number));
+    throw new TypeError('Mismatched types for remainder operation');
   }
 }

@@ -1,8 +1,8 @@
 // https://tc39.es/proposal-temporal/#sec-temporal-iso8601grammar
 
 import type { TemporalDurationObject } from '../intrinsics/Temporal/Duration.mts';
-import { remainder } from '../abstract-ops/math.mts';
 import { OutOfRange } from '../utils/language.mts';
+import { Decimal } from '../host-defined/decimal.mts';
 import {
   Assert,
   CreateTemporalDuration,
@@ -20,6 +20,8 @@ import {
   Value,
   X,
   type Formattable,
+  type Integer,
+  type MathematicalValue,
   type Mutable,
   type PlainCompletion, type PlainEvaluator, type TimeRecord,
   type ValueEvaluator,
@@ -264,59 +266,59 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   );
   if (Array.isArray(duration)) return ThrowCompletion(duration[0]);
   const {
-    AsciiSign: sign, Years: years = '', Months: months = '', Weeks: weeks = '', Days: days = '', Hours: hours = '', Minutes: minutes = '', Seconds: seconds = '',
+    AsciiSign: sign, Years: years = '', Months: months = '', Weeks: weeks = '', Days: days = '', Hours: hoursNode = '', Minutes: minutesNode = '', Seconds: secondsNode = '',
   } = duration;
-  const sep = /[.,]/;
-  const fHours = hours?.split(sep)[1] ?? '';
-  const fMinutes = minutes?.split(sep)[1] ?? '';
-  const fSeconds = seconds?.split(sep)[1] ?? '';
-  let yearsMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(years))));
-  let monthsMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(months))));
-  let weeksMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(weeks))));
-  let daysMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(days))));
-  let hoursMV = BigInt(Q(yield* ToIntegerWithTruncation(Value(hours))));
-  let minutesMV: number;
+  const _seperator = /(?=[.,])/;
+  const [hours, fHours = ''] = hoursNode.split(_seperator);
+  const [minutes, fMinutes = ''] = minutesNode.split(_seperator);
+  const [seconds, fSeconds = ''] = secondsNode.split(_seperator);
+  let yearsMV = Q(yield* ToIntegerWithTruncation(Value(years)));
+  let monthsMV = Q(yield* ToIntegerWithTruncation(Value(months)));
+  let weeksMV = Q(yield* ToIntegerWithTruncation(Value(weeks)));
+  let daysMV = Q(yield* ToIntegerWithTruncation(Value(days)));
+  let hoursMV = Q(yield* ToIntegerWithTruncation(Value(hours)));
+  let minutesMV: MathematicalValue;
   if (fHours) {
     Assert(!minutes && !fMinutes && !seconds && !fSeconds);
-    const fHoursDigits = fHours;
+    const fHoursDigits = fHours.substring(1);
     const fHoursScale = fHoursDigits.length;
-    minutesMV = (Q(yield* ToIntegerWithTruncation(Value(fHoursDigits))) / (10 ** fHoursScale)) * 60;
+    minutesMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fHoursDigits)))).divide(10 ** fHoursScale).multiply(60);
   } else {
-    minutesMV = Q(yield* ToIntegerWithTruncation(Value(minutes)));
+    minutesMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(minutes))));
   }
-  let secondsMV: number;
+  let secondsMV: MathematicalValue;
   if (fMinutes) {
     Assert(!seconds && !fSeconds);
-    const fMinutesDigits = fMinutes;
+    const fMinutesDigits = fMinutes.substring(1);
     const fMinutesScale = fMinutesDigits.length;
-    secondsMV = (Q(yield* ToIntegerWithTruncation(Value(fMinutesDigits))) / (10 ** fMinutesScale)) * 60;
+    secondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fMinutesDigits)))).divide(10 ** fMinutesScale).multiply(60);
   } else if (seconds) {
-    secondsMV = Q(yield* ToIntegerWithTruncation(Value(seconds)));
+    secondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(seconds))));
   } else {
-    secondsMV = remainder(minutesMV, 1) * 60;
+    secondsMV = minutesMV.remainder(1).multiply(60);
   }
-  let millisecondsMV: number;
+  let millisecondsMV: MathematicalValue;
   if (fSeconds) {
-    const fSecondDigits = fSeconds;
+    const fSecondDigits = fSeconds.substring(1);
     const fSecondsScale = fSecondDigits.length;
-    millisecondsMV = (Q(yield* ToIntegerWithTruncation(Value(fSecondDigits))) / (10 ** fSecondsScale)) * 1000;
+    millisecondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fSecondDigits)))).divide(10 ** fSecondsScale).multiply(1000);
   } else {
-    millisecondsMV = remainder(secondsMV, 1) * 1000;
+    millisecondsMV = secondsMV.remainder(1).multiply(1000);
   }
-  let microsecondsMV = remainder(millisecondsMV, 1) * 1000;
-  let nanosecondsMV = remainder(microsecondsMV, 1) * 1000;
+  let microsecondsMV = millisecondsMV.remainder(1).multiply(1000);
+  let nanosecondsMV = microsecondsMV.remainder(1).multiply(1000);
   const factor = sign === '-' ? -1n : 1n;
   yearsMV *= factor;
   monthsMV *= factor;
   weeksMV *= factor;
   daysMV *= factor;
   hoursMV *= factor;
-  minutesMV = Math.floor(minutesMV) * Number(factor);
-  secondsMV = Math.floor(secondsMV) * Number(factor);
-  millisecondsMV = Math.floor(millisecondsMV) * Number(factor);
-  microsecondsMV = Math.floor(microsecondsMV) * Number(factor);
-  nanosecondsMV = Math.floor(nanosecondsMV) * Number(factor);
-  return Q(yield* CreateTemporalDuration(yearsMV, monthsMV, weeksMV, daysMV, hoursMV, BigInt(minutesMV), BigInt(secondsMV), BigInt(millisecondsMV), BigInt(microsecondsMV), BigInt(nanosecondsMV)));
+  minutesMV = minutesMV.floor().multiply(factor);
+  secondsMV = secondsMV.floor().multiply(factor);
+  millisecondsMV = millisecondsMV.floor().multiply(factor);
+  microsecondsMV = microsecondsMV.floor().multiply(factor);
+  nanosecondsMV = nanosecondsMV.floor().multiply(factor);
+  return Q(yield* CreateTemporalDuration(yearsMV, monthsMV, weeksMV, daysMV, hoursMV, minutesMV.toBigInt(), secondsMV.toBigInt(), millisecondsMV.toBigInt(), microsecondsMV.toBigInt(), nanosecondsMV.toBigInt()));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parsetemporaltimezonestring */
@@ -348,7 +350,7 @@ export interface TimeZoneIdentifierParseRecord {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parsemonthcode */
-export function* ParseMonthCode(argument: Value | string): PlainEvaluator<{ MonthNumber: bigint; IsLeapMonth: boolean }> {
+export function* ParseMonthCode(argument: Value | string): PlainEvaluator<{ MonthNumber: Integer; IsLeapMonth: boolean }> {
   const monthCode = typeof argument === 'string' ? Value(argument) : Q(yield* ToPrimitive(argument, 'string'));
   if (!(monthCode instanceof JSStringValue)) {
     return Throw.TypeError('monthCode ($1) is not a string', typeof argument === 'string' ? Value(argument) : argument);
@@ -910,6 +912,9 @@ export class DateParser {
     }
     if ((Minute || Second) && HourDot) throw this.raise('Invalid TemporalDurationString: Hour has decimal part but Minute or Second is present');
     if (Second && MinuteDot) throw this.raise('Invalid TemporalDurationString: Minute has decimal part but Second is present');
+    if (!Year && !Month && !Week && !Day && !Hour && !Minute && !Second) {
+      throw this.raise('Invalid TemporalDurationString: Bare P/-P/+P is not valid');
+    }
     return {
       AsciiSign: AsciiSign as '+' | '-' | undefined,
       Years: Year ? Year.slice(0, -1) : undefined,

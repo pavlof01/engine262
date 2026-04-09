@@ -61,15 +61,15 @@ function* PlainDateTimeConstructor([
   if (NewTarget instanceof UndefinedValue) {
     return Throw.TypeError('Temporal.PlainDateTime cannot be called without new');
   }
-  const isoYear = BigInt(Q(yield* ToIntegerWithTruncation(_isoYear)));
-  const isoMonth = BigInt(Q(yield* ToIntegerWithTruncation(_isoMonth)));
-  const isoDay = BigInt(Q(yield* ToIntegerWithTruncation(_isoDay)));
-  const hour = _hour instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_hour)));
-  const minute = _minute instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_minute)));
-  const second = _second instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_second)));
-  const millisecond = _millisecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_millisecond)));
-  const microsecond = _microsecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_microsecond)));
-  const nanosecond = _nanosecond instanceof UndefinedValue ? 0n : BigInt(Q(yield* ToIntegerWithTruncation(_nanosecond)));
+  const isoYear = Q(yield* ToIntegerWithTruncation(_isoYear));
+  const isoMonth = Q(yield* ToIntegerWithTruncation(_isoMonth));
+  const isoDay = Q(yield* ToIntegerWithTruncation(_isoDay));
+  const hour = _hour instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_hour));
+  const minute = _minute instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_minute));
+  const second = _second instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_second));
+  const millisecond = _millisecond instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_millisecond));
+  const microsecond = _microsecond instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_microsecond));
+  const nanosecond = _nanosecond instanceof UndefinedValue ? 0n : Q(yield* ToIntegerWithTruncation(_nanosecond));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }

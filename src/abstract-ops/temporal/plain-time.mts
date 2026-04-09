@@ -6,24 +6,26 @@ import { ParseISODateTime } from '../../parser/TemporalParser.mts';
 import {
   abs, floorDiv, max, min, modulo,
 } from '../math.mts';
+import { Decimal } from '../../host-defined/decimal.mts';
 import { GetOptionsObject, type RoundingMode } from './addition.mts';
 import {
   Assert, type TimeDuration, TimeDurationFromComponents, nsPerDay, Value, type ValueEvaluator, ObjectValue, Q, GetTemporalOverflowOption, X, GetISODateTimeFor, JSStringValue, Throw, type PlainEvaluator, UndefinedValue, type PlainCompletion, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, Get, ToIntegerWithTruncation, FormatTimeString, type TimeUnit, TemporalUnit, Table21_LengthInNanoSeconds, RoundNumberToIncrement, GetDifferenceSettings, RoundTimeDuration, CombineDateAndTimeDuration, ZeroDateDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecord,
+  type Integer,
 } from '#self';
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-time-records */
 export interface TimeRecord {
-  readonly Days: bigint;
-  readonly Hour: bigint;
-  readonly Minute: bigint;
-  readonly Second: bigint;
-  readonly Millisecond: bigint;
-  readonly Microsecond: bigint;
-  readonly Nanosecond: bigint;
+  readonly Days: Integer;
+  readonly Hour: Integer;
+  readonly Minute: Integer;
+  readonly Second: Integer;
+  readonly Millisecond: Integer;
+  readonly Microsecond: Integer;
+  readonly Nanosecond: Integer;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-createtimerecord */
-export function CreateTimeRecord(hour: bigint, minute: bigint, second: bigint, millisecond: bigint, microsecond: bigint, nanosecond: bigint, deltaDays = 0n): TimeRecord {
+export function CreateTimeRecord(hour: Integer, minute: Integer, second: Integer, millisecond: Integer, microsecond: Integer, nanosecond: Integer, deltaDays: Integer = 0n): TimeRecord {
   Assert(IsValidTime(hour, minute, second, millisecond, microsecond, nanosecond));
   return {
     Days: deltaDays,
@@ -122,7 +124,7 @@ export function* ToTimeRecordOrMidnight(item: Value): PlainEvaluator<TimeRecord>
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-regulatetime */
-export function RegulateTime(hour: bigint, minute: bigint, second: bigint, millisecond: bigint, microsecond: bigint, nanosecond: bigint, overflow: 'constrain' | 'reject'): PlainCompletion<TimeRecord> {
+export function RegulateTime(hour: Integer, minute: Integer, second: Integer, millisecond: Integer, microsecond: Integer, nanosecond: Integer, overflow: 'constrain' | 'reject'): PlainCompletion<TimeRecord> {
   if (overflow === 'constrain') {
     hour = max(0n, min(23n, hour));
     minute = max(0n, min(59n, minute));
@@ -139,8 +141,8 @@ export function RegulateTime(hour: bigint, minute: bigint, second: bigint, milli
   return CreateTimeRecord(hour, minute, second, millisecond, microsecond, nanosecond);
 }
 
-/** https://tc39.es/proposal-temporal/#sec-temporal-isvalidtime */
-export function IsValidTime(hour: bigint, minute: bigint, second: bigint, millisecond: bigint, microsecond: bigint, nanosecond: bigint): boolean {
+/** https://tc39.es/proposal-temporal/#sec-isvalidtime */
+export function IsValidTime(hour: Integer, minute: Integer, second: Integer, millisecond: Integer, microsecond: Integer, nanosecond: Integer): boolean {
   if (hour < 0n || hour > 23n) return false;
   if (minute < 0n || minute > 59n) return false;
   if (second < 0n || second > 59n) return false;
@@ -151,7 +153,7 @@ export function IsValidTime(hour: bigint, minute: bigint, second: bigint, millis
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-balancetime */
-export function BalanceTime(hour: bigint, minute: bigint, second: bigint, millisecond: bigint, microsecond: bigint, nanosecond: bigint): TimeRecord {
+export function BalanceTime(hour: Integer, minute: Integer, second: Integer, millisecond: Integer, microsecond: Integer, nanosecond: Integer): TimeRecord {
   microsecond += floorDiv(nanosecond, 1000n);
   nanosecond = modulo(nanosecond, 1000n);
   millisecond += floorDiv(microsecond, 1000n);
@@ -210,32 +212,32 @@ export function* ToTemporalTimeRecord(temporalTimeLike: ObjectValue, completenes
   let any = false;
   const hour = Q(yield* Get(temporalTimeLike, Value('hour')));
   if (!(hour instanceof UndefinedValue)) {
-    result.Hour = BigInt(Q(yield* ToIntegerWithTruncation(hour)));
+    result.Hour = Q(yield* ToIntegerWithTruncation(hour));
     any = true;
   }
   const microsecond = Q(yield* Get(temporalTimeLike, Value('microsecond')));
   if (!(microsecond instanceof UndefinedValue)) {
-    result.Microsecond = BigInt(Q(yield* ToIntegerWithTruncation(microsecond)));
+    result.Microsecond = Q(yield* ToIntegerWithTruncation(microsecond));
     any = true;
   }
   const millisecond = Q(yield* Get(temporalTimeLike, Value('millisecond')));
   if (!(millisecond instanceof UndefinedValue)) {
-    result.Millisecond = BigInt(Q(yield* ToIntegerWithTruncation(millisecond)));
+    result.Millisecond = Q(yield* ToIntegerWithTruncation(millisecond));
     any = true;
   }
   const minute = Q(yield* Get(temporalTimeLike, Value('minute')));
   if (!(minute instanceof UndefinedValue)) {
-    result.Minute = BigInt(Q(yield* ToIntegerWithTruncation(minute)));
+    result.Minute = Q(yield* ToIntegerWithTruncation(minute));
     any = true;
   }
   const nanosecond = Q(yield* Get(temporalTimeLike, Value('nanosecond')));
   if (!(nanosecond instanceof UndefinedValue)) {
-    result.Nanosecond = BigInt(Q(yield* ToIntegerWithTruncation(nanosecond)));
+    result.Nanosecond = Q(yield* ToIntegerWithTruncation(nanosecond));
     any = true;
   }
   const second = Q(yield* Get(temporalTimeLike, Value('second')));
   if (!(second instanceof UndefinedValue)) {
-    result.Second = BigInt(Q(yield* ToIntegerWithTruncation(second)));
+    result.Second = Q(yield* ToIntegerWithTruncation(second));
     any = true;
   }
   if (!any) {
@@ -246,7 +248,7 @@ export function* ToTemporalTimeRecord(temporalTimeLike: ObjectValue, completenes
 
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-timerecordtostring */
-export function TimeRecordToString(time: TimeRecord, precision: number | TemporalUnit.Minute | 'auto'): string {
+export function TimeRecordToString(time: TimeRecord, precision: Integer | TemporalUnit.Minute | 'auto'): string {
   const subSecondNanoseconds = time.Millisecond * BigInt(1e6) + time.Microsecond * BigInt(1e3) + time.Nanosecond;
   return FormatTimeString(time.Hour, time.Minute, time.Second, subSecondNanoseconds, precision);
 }
@@ -274,7 +276,7 @@ export function AddTime(time: TimeRecord, timeDuration: TimeDuration): TimeRecor
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-roundtime */
-export function RoundTime(time: TimeRecord, increment: bigint, unit: TimeUnit | TemporalUnit.Day, roundingMode: RoundingMode): TimeRecord {
+export function RoundTime(time: TimeRecord, increment: Integer, unit: TimeUnit | TemporalUnit.Day, roundingMode: RoundingMode): TimeRecord {
   let quantity: bigint;
   if (unit === TemporalUnit.Day || unit === TemporalUnit.Hour) {
     quantity = (((((time.Hour * 60n + time.Minute) * 60n + time.Second) * 1000n + time.Millisecond) * 1000n + time.Microsecond) * 1000n + time.Nanosecond);
@@ -291,7 +293,7 @@ export function RoundTime(time: TimeRecord, increment: bigint, unit: TimeUnit | 
     quantity = time.Nanosecond;
   }
   const unitLength = Table21_LengthInNanoSeconds[unit];
-  const result = RoundNumberToIncrement(Number(quantity), increment * unitLength, roundingMode) / unitLength;
+  const result = RoundNumberToIncrement(Decimal(quantity), increment * unitLength, roundingMode) / unitLength;
   if (unit === TemporalUnit.Day) return CreateTimeRecord(0n, 0n, 0n, 0n, 0n, 0n, result);
   if (unit === TemporalUnit.Hour) return BalanceTime(result, 0n, 0n, 0n, 0n, 0n);
   if (unit === TemporalUnit.Minute) return BalanceTime(time.Hour, result, 0n, 0n, 0n, 0n);

@@ -1,5 +1,7 @@
 import { CanonicalizeUValue } from '../../ecma402/not-implemented.mts';
-import { __ts_cast__, isArray, type Mutable } from '../../utils/language.mts';
+import {
+  __ts_cast__, isArray, OutOfRange, type Mutable,
+} from '../../utils/language.mts';
 import { ParseMonthCode, ParseTemporalCalendarString } from '../../parser/TemporalParser.mts';
 import { isTemporalPlainDateTimeObject } from '../../intrinsics/Temporal/PlainDateTime.mts';
 import { isTemporalPlainMonthDayObject } from '../../intrinsics/Temporal/PlainMonthDay.mts';
@@ -45,6 +47,7 @@ import {
   X,
   ZeroDateDuration,
   type DateDurationRecord,
+  type Integer,
   type PlainCompletion, type PlainEvaluator,
 } from '#self';
 
@@ -68,7 +71,7 @@ export function AvailableCalendars(): CalendarType[] {
 export type MonthCode = string & { __brand: 'MonthCode' };
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-createmonthcode */
-export function CreateMonthCode(monthNumber: bigint, isLeapMonth: boolean): MonthCode {
+export function CreateMonthCode(monthNumber: Integer, isLeapMonth: boolean): MonthCode {
   if (!isLeapMonth) Assert(monthNumber > 0n);
   const numberPart = ToZeroPaddedDecimalString(monthNumber, 2);
   if (isLeapMonth) {
@@ -80,35 +83,35 @@ export function CreateMonthCode(monthNumber: bigint, isLeapMonth: boolean): Mont
 /** https://tc39.es/proposal-temporal/#sec-temporal-calendar-date-records */
 export interface CalendarDateRecord {
   readonly Era: string | undefined;
-  readonly EraYear: bigint | undefined;
-  readonly Year: bigint;
-  readonly Month: bigint;
+  readonly EraYear: Integer | undefined;
+  readonly Year: Integer;
+  readonly Month: Integer;
   readonly MonthCode: string;
-  readonly Day: bigint;
-  readonly DayOfWeek: bigint;
-  readonly DayOfYear: bigint;
+  readonly Day: Integer;
+  readonly DayOfWeek: Integer;
+  readonly DayOfYear: Integer;
   readonly WeekOfYear: YearWeekRecord;
-  readonly DaysInWeek: bigint;
-  readonly DaysInMonth: bigint;
-  readonly DaysInYear: bigint;
-  readonly MonthsInYear: bigint;
+  readonly DaysInWeek: Integer;
+  readonly DaysInMonth: Integer;
+  readonly DaysInYear: Integer;
+  readonly MonthsInYear: Integer;
   readonly InLeapYear: boolean;
 }
 
 /** https://tc39.es/proposal-temporal/#table-temporal-calendar-fields-record-fields */
 export interface CalendarFieldsRecord {
   readonly Era: string | undefined;
-  readonly EraYear: bigint | undefined;
-  Year: bigint | undefined;
-  Month: bigint | undefined;
+  readonly EraYear: Integer | undefined;
+  Year: Integer | undefined;
+  Month: Integer | undefined;
   MonthCode: string | undefined;
-  Day: bigint | undefined;
-  Hour: bigint | undefined;
-  Minute: bigint | undefined;
-  Second: bigint | undefined;
-  Millisecond: bigint | undefined;
-  Microsecond: bigint | undefined;
-  Nanosecond: bigint | undefined;
+  Day: Integer | undefined;
+  Hour: Integer | undefined;
+  Minute: Integer | undefined;
+  Second: Integer | undefined;
+  Millisecond: Integer | undefined;
+  Microsecond: Integer | undefined;
+  Nanosecond: Integer | undefined;
   OffsetString: string | undefined;
   readonly TimeZone: string | undefined;
 }
@@ -133,18 +136,18 @@ export const Table63_CalendarFieldsRecordFields = [
   { FieldName: 'Month', DefaultValue: undefined, PropertyKey: 'month', EnumerationKey: 'month', Conversion: Table19_Conversion.ToPositiveIntegerWithTruncation },
   { FieldName: 'MonthCode', DefaultValue: undefined, PropertyKey: 'monthCode', EnumerationKey: 'month-code', Conversion: Table19_Conversion.ToMonthCode },
   { FieldName: 'Day', DefaultValue: undefined, PropertyKey: 'day', EnumerationKey: 'day', Conversion: Table19_Conversion.ToPositiveIntegerWithTruncation },
-  { FieldName: 'Hour', DefaultValue: 0, PropertyKey: 'hour', EnumerationKey: 'hour', Conversion: Table19_Conversion.ToIntegerWithTruncation },
-  { FieldName: 'Minute', DefaultValue: 0, PropertyKey: 'minute', EnumerationKey: 'minute', Conversion: Table19_Conversion.ToIntegerWithTruncation },
-  { FieldName: 'Second', DefaultValue: 0, PropertyKey: 'second', EnumerationKey: 'second', Conversion: Table19_Conversion.ToIntegerWithTruncation },
-  { FieldName: 'Millisecond', DefaultValue: 0, PropertyKey: 'millisecond', EnumerationKey: 'millisecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
-  { FieldName: 'Microsecond', DefaultValue: 0, PropertyKey: 'microsecond', EnumerationKey: 'microsecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
-  { FieldName: 'Nanosecond', DefaultValue: 0, PropertyKey: 'nanosecond', EnumerationKey: 'nanosecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Hour', DefaultValue: 0n, PropertyKey: 'hour', EnumerationKey: 'hour', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Minute', DefaultValue: 0n, PropertyKey: 'minute', EnumerationKey: 'minute', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Second', DefaultValue: 0n, PropertyKey: 'second', EnumerationKey: 'second', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Millisecond', DefaultValue: 0n, PropertyKey: 'millisecond', EnumerationKey: 'millisecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Microsecond', DefaultValue: 0n, PropertyKey: 'microsecond', EnumerationKey: 'microsecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
+  { FieldName: 'Nanosecond', DefaultValue: 0n, PropertyKey: 'nanosecond', EnumerationKey: 'nanosecond', Conversion: Table19_Conversion.ToIntegerWithTruncation },
   { FieldName: 'OffsetString', DefaultValue: undefined, PropertyKey: 'offset', EnumerationKey: 'offset', Conversion: Table19_Conversion.ToOffsetString },
   { FieldName: 'TimeZone', DefaultValue: undefined, PropertyKey: 'timeZone', EnumerationKey: 'time-zone', Conversion: Table19_Conversion.ToTemporalTimeZoneIdentifier },
   /* eslint-enable object-curly-newline */
 ] as const satisfies {
   FieldName: keyof CalendarFieldsRecord;
-  DefaultValue: string | number | undefined;
+  DefaultValue: string | bigint | undefined;
   PropertyKey: string;
   EnumerationKey: CalendarFieldsRecordEnumerationKey;
   Conversion: Table19_Conversion;
@@ -201,9 +204,9 @@ export function* PrepareCalendarFields(
       any = true;
 
       if (Conversion === Table19_Conversion.ToIntegerWithTruncation) {
-        value = F(Q(yield* ToIntegerWithTruncation(value)));
+        value = F(Number(Q(yield* ToIntegerWithTruncation(value))));
       } else if (Conversion === Table19_Conversion.ToPositiveIntegerWithTruncation) {
-        value = F(Q(yield* ToPositiveIntegerWithTruncation(value)));
+        value = F(Number(Q(yield* ToPositiveIntegerWithTruncation(value))));
       } else if (Conversion === Table19_Conversion.ToString) {
         value = Q(yield* ToString(value));
       } else if (Conversion === Table19_Conversion.ToTemporalTimeZoneIdentifier) {
@@ -216,23 +219,58 @@ export function* PrepareCalendarFields(
         value = Value(Q(yield* ToOffsetString(value)));
       }
 
-      let assignValue;
-      if (value instanceof NumberValue) {
-        assignValue = R(value);
-      } else if (value instanceof JSStringValue) {
-        assignValue = value.stringValue();
+      switch (FieldName) {
+        case 'Day':
+        case 'EraYear':
+        case 'Hour':
+        case 'Microsecond':
+        case 'Millisecond':
+        case 'Minute':
+        case 'Month':
+        case 'Nanosecond':
+        case 'Second':
+        case 'Year': {
+          Assert(value instanceof NumberValue);
+          result[FieldName] = BigInt(R(value));
+          break;
+        }
+        case 'Era':
+        case 'MonthCode':
+        case 'OffsetString':
+        case 'TimeZone': {
+          Assert(value instanceof JSStringValue);
+          result[FieldName] = value.stringValue();
+          break;
+        }
+        default: throw OutOfRange.exhaustive(FieldName);
       }
-      if (assignValue === undefined) {
-        throw new Error('invalid type');
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result[FieldName] = assignValue as any;
     } else if (isArray(requiredFieldNames)) {
       if (requiredFieldNames.includes(key)) {
         return Throw.TypeError('$1 is a required on object $2', key, fields);
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result[FieldName] = DefaultValue as any;
+      switch (FieldName) {
+        case 'Day':
+        case 'EraYear':
+        case 'Hour':
+        case 'Microsecond':
+        case 'Millisecond':
+        case 'Minute':
+        case 'Month':
+        case 'Nanosecond':
+        case 'Second':
+        case 'Year': {
+          result[FieldName] = DefaultValue;
+          break;
+        }
+        case 'Era':
+        case 'MonthCode':
+        case 'OffsetString':
+        case 'TimeZone': {
+          result[FieldName] = DefaultValue;
+          break;
+        }
+        default: throw OutOfRange.exhaustive(FieldName);
+      }
     }
   }
 
@@ -279,14 +317,58 @@ export function CalendarMergeFields(calendar: CalendarType, fields: CalendarFiel
   for (const { EnumerationKey, FieldName } of Table63_CalendarFieldsRecordFields) {
     const key = EnumerationKey;
     if (fieldsKeys.includes(key) && !overriddenKeys.includes(key)) {
-      const propValue = fields[FieldName];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      merged[FieldName] = propValue as any;
+      switch (FieldName) {
+        case 'Day':
+        case 'EraYear':
+        case 'Hour':
+        case 'Microsecond':
+        case 'Millisecond':
+        case 'Minute':
+        case 'Month':
+        case 'Nanosecond':
+        case 'Second':
+        case 'Year': {
+          const propValue = fields[FieldName];
+          merged[FieldName] = propValue;
+          break;
+        }
+        case 'Era':
+        case 'MonthCode':
+        case 'OffsetString':
+        case 'TimeZone': {
+          const propValue = fields[FieldName];
+          merged[FieldName] = propValue;
+          break;
+        }
+        default: throw OutOfRange.exhaustive(FieldName);
+      }
     }
     if (additionalKeys.includes(key)) {
-      const propValue = additionalFields[FieldName];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      merged[FieldName] = propValue as any;
+      switch (FieldName) {
+        case 'Day':
+        case 'EraYear':
+        case 'Hour':
+        case 'Microsecond':
+        case 'Millisecond':
+        case 'Minute':
+        case 'Month':
+        case 'Nanosecond':
+        case 'Second':
+        case 'Year': {
+          const propValue = additionalFields[FieldName];
+          merged[FieldName] = propValue;
+          break;
+        }
+        case 'Era':
+        case 'MonthCode':
+        case 'OffsetString':
+        case 'TimeZone': {
+          const propValue = additionalFields[FieldName];
+          merged[FieldName] = propValue;
+          break;
+        }
+        default: throw OutOfRange.exhaustive(FieldName);
+      }
     }
   }
   return merged;
@@ -312,9 +394,9 @@ export function CalendarDateAdd(
 ): PlainCompletion<ISODateRecord> {
   let result: ISODateRecord;
   if (calendar === 'iso8601') {
-    const intermediate = Q(BalanceISOYearMonth(isoDate.Year + duration.Years, isoDate.Month + duration.Months));
+    const intermediate = Q(BalanceISOYearMonth(isoDate.Year + BigInt(duration.Years), isoDate.Month + BigInt(duration.Months)));
     const regulated = Q(RegulateISODate(intermediate.Year, intermediate.Month, isoDate.Day, overflow));
-    const days = duration.Days + 7n * duration.Weeks;
+    const days = BigInt(duration.Days) + 7n * BigInt(duration.Weeks);
     result = Q(AddDaysToISODate(regulated, days));
   } else {
     result = Q(NonISODateAdd(calendar, isoDate, duration, overflow));
@@ -486,7 +568,7 @@ export function CalendarEquals(one: CalendarType, two: CalendarType): boolean {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isodaysinmonth */
-export function ISODaysInMonth(year: bigint, month: bigint): bigint {
+export function ISODaysInMonth(year: Integer, month: Integer): Integer {
   if (month === 1n || month === 3n || month === 5n || month === 7n || month === 8n || month === 10n || month === 12n) {
     return 31n;
   }
@@ -494,7 +576,7 @@ export function ISODaysInMonth(year: bigint, month: bigint): bigint {
     return 30n;
   }
   Assert(month === 2n);
-  return 28n + MathematicalInLeapYear(EpochTimeForYear(year));
+  return (28n + MathematicalInLeapYear(EpochTimeForYear(year)));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isoweekofyear */
@@ -533,13 +615,13 @@ export function ISOWeekOfYear(isoDate: ISODateRecord): YearWeekRecord {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isodayofyear */
-export function ISODayOfYear(isoDate: ISODateRecord): bigint {
+export function ISODayOfYear(isoDate: ISODateRecord): Integer {
   const epochDays = ISODateToEpochDays(isoDate.Year, isoDate.Month - 1n, isoDate.Day);
   return EpochTimeToDayInYear(EpochDaysToEpochMs(epochDays, 0n)) + 1n;
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isodayofweek */
-export function ISODayOfWeek(isoDate: ISODateRecord): bigint {
+export function ISODayOfWeek(isoDate: ISODateRecord): Integer {
   const epochDays = ISODateToEpochDays(isoDate.Year, isoDate.Month - 1n, isoDate.Day);
   const dayOfWeek = EpochTimeToWeekDay(EpochDaysToEpochMs(epochDays, 0n));
   if (dayOfWeek === 0n) {

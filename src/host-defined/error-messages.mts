@@ -118,7 +118,7 @@ export function format(arg: Formattable): string {
         return `/${P}/${F}`;
       }
       if (isDateObject(arg)) {
-        const d = new Date(R(arg.DateValue));
+        const d = new Date(arg.DateValue);
         if (Number.isNaN(d.getTime())) {
           return '[Date Invalid]';
         }
@@ -402,9 +402,11 @@ export interface Throw {
   | '$1 cannot be used as a WeakMap key'
   | '$1 cannot be used as an identifier'
   | '$1 cannot be used as an identifier in strict mode'
+  | '$1 cannot be used as an index'
   | '$1 cannot be used before initialization'
   | '$1 cannot be weakly referenced'
   | '$1 does not look like a TemporalTimeLike object'
+  | '$1 does not match any of the allowed ISO 8601 formats'
   | '$1 is already declared'
   | '$1 is not a Promise constructor'
   | '$1 is not a RegExp object'
@@ -466,7 +468,6 @@ export interface Throw {
   | 'Class decorator must return a function or undefined, but $1 was returned'
   | 'Count $1 is invalid'
   | 'Critical annotation "$1" failed.'
-  | 'Date parser found more content after parsing finished when parsing $1'
   | 'Duplicate import attribute $1'
   | 'Duplicated capture group $1'
   | 'Expect a CharacterClassEscape but $1 found'
@@ -478,11 +479,9 @@ export interface Throw {
   | 'Function $1 already declared'
   | 'Identifier $1 already declared'
   | 'Import attribute value must be a string, but $1'
-  | 'Index ($1) cannot be negative'
-  | 'Index ($1) is out of range'
+  | 'Index $1 is too big'
   | 'Invalid TemporalUnit value $1'
   | 'Invalid code point $1'
-  | 'Invalid date: $1'
   | 'Invalid format range for $1'
   | 'Invalid hint: $1'
   | 'Invalid time string $1'
