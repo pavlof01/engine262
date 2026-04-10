@@ -35,6 +35,7 @@ import {
   Get,
   ISODateSurpasses,
   ISODateWithinLimits,
+  ISOYearMonthWithinLimits,
   JSStringValue,
   NumberValue,
   ObjectValue,
@@ -524,7 +525,7 @@ export function* CalendarYearMonthFromFields(
   const firstDayIndex = 1n;
   fields.Day = firstDayIndex;
   const result = Q(CalendarDateToISO(calendar, fields, overflow));
-  if (!ISODateWithinLimits(result)) {
+  if (!ISOYearMonthWithinLimits(result)) {
     return Throw.RangeError('Resulting ISODate is out of range');
   }
   return result;
@@ -549,12 +550,8 @@ export function FormatCalendarAnnotation(
   id: CalendarType,
   showCalendar: 'auto' | 'always' | 'never' | 'critical',
 ): string {
-  if (showCalendar === 'never') {
-    return '';
-  }
-  if (showCalendar === 'auto' && id === 'iso8601') {
-    return '';
-  }
+  if (showCalendar === 'never') return '';
+  if (showCalendar === 'auto' && id === 'iso8601') return '';
   const flag = showCalendar === 'critical' ? '!' : '';
   return `[${flag}u-ca=${id}]`;
 }

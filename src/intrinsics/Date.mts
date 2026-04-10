@@ -7,7 +7,8 @@ import {
   type ValueEvaluator,
 } from '../completion.mts';
 import type { Mutable } from '../utils/language.mts';
-import { UTC_TemporalEdited } from '../abstract-ops/temporal/addition.mts';
+import { GetUTCEpochNanoseconds, UTC_TemporalEdited } from '../abstract-ops/temporal/addition.mts';
+import { ParseDateTimeUTCOffset, ParseISODateTime } from '../parser/TemporalParser.mts';
 import { bootstrapConstructor } from './bootstrap.mts';
 import { ToDateString, thisTimeValue } from './DatePrototype.mts';
 import {
@@ -27,6 +28,12 @@ import {
   Realm,
   R,
   SystemUTCEpochMilliseconds,
+  ThrowCompletion,
+  EnsureCompletion,
+  NormalCompletion,
+  BalanceISODateTime,
+  CheckISODaysRange,
+  IsValidEpochNanoseconds,
 } from '#self';
 
 export interface DateObject extends OrdinaryObject {
@@ -190,11 +197,57 @@ function* Date_UTC([year = Value.undefined, month, date, hours, minutes, seconds
   return Value(TimeClip(MakeDate(MakeDay(R(yr), R(m), R(dt)), MakeTime(R(h), R(min), R(s), R(milli)))));
 }
 
-function parseDate(dateTimeString: JSStringValue) {
-  /** https://tc39.es/ecma262/#sec-date-time-string-format */
-  // TODO: implement parsing without the host.
-  const parsed = Date.parse(dateTimeString.stringValue());
-  return F(parsed);
+/** https://tc39.es/ecma262/#sec-date-time-string-format */
+function parseDate(dateTimeString: JSStringValue): NumberValue {
+  const str = dateTimeString.stringValue();
+  const result = EnsureCompletion(ParseISODateTime(str, ['DateTimeString', 'TemporalInstantString', 'TemporalDateTimeString[~Zoned]', 'TemporalDateTimeString[+Zoned]']));
+  if (result instanceof NormalCompletion) {
+    const parsed = result.Value;
+    const OffsetString = parsed.TimeZone.OffsetString;
+    let offsetNanoseconds = 0n;
+    if (OffsetString !== undefined) {
+      offsetNanoseconds = X(ParseDateTimeUTCOffset(OffsetString));
+    }
+    const time = parsed.Time;
+    Assert(time !== 'start-of-day');
+    const balanced = BalanceISODateTime(parsed.Year!, parsed.Month, parsed.Day, time.Hour, time.Minute, time.Second, time.Millisecond, time.Microsecond, time.Nanosecond - offsetNanoseconds);
+    if (CheckISODaysRange(balanced.ISODate) instanceof ThrowCompletion) {
+      return F(NaN);
+    }
+    const epochNanoseconds = GetUTCEpochNanoseconds(balanced);
+    if (!IsValidEpochNanoseconds(epochNanoseconds)) {
+      return F(NaN);
+    }
+    return F(Number(epochNanoseconds / 1000000n));
+  }
+
+  // Match the following format:
+  // Thu Jan 01 1970 00:00:00 GMT+0000
+  // Thu, 01 Jan 1970 00:00:00 GMT
+  const parse = /(?:(?<weekDay>Sun|Mon|Tue|Wed|Thu|Fri|Sat),? )?(?:(?<monthDay>(?<month>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (?<day>\d{1,2}))|(?<dayMonth>(?<day2>\d{1,2}) (?<month2>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)))? ?(?<year>[+-]?\d+)(?: (?<time>(?<hour>\d{1,2}):(?<minute>\d{1,2})(?::(?<second>\d{1,2}))))?(?: (?<timeZone>\w{3}(?:\+\d+)?))?/g;
+  const match = parse.exec(str);
+  if (!match) {
+    return F(NaN);
+  }
+  const groups = match.groups!;
+  const monthStr = groups.month ?? groups.month2 ?? 'Jan';
+  const dayStr = groups.day ?? groups.day2 ?? 1;
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(monthStr);
+  const day = Number(dayStr);
+  const year = Number(groups.year);
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+  if (groups.time) {
+    hour = Number(groups.hour);
+    minute = Number(groups.minute);
+    if (groups.second) {
+      second = Number(groups.second);
+    }
+  }
+  // const timeZoneStr = groups.timeZone;
+  // TODO: offset currently dropped
+  return F(TimeClip(MakeDate(MakeDay(year, month, day), MakeTime(hour, minute, second, 0))));
 }
 
 export function bootstrapDate(realmRec: Realm) {

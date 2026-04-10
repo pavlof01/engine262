@@ -4,8 +4,8 @@ import { SystemTimeZoneIdentifier } from './addition.mts';
 import {
   ObjectValue, GetGlobalObject, Value, type PlainCompletion, Q, ToTemporalTimeZoneIdentifier, GetISODateTimeFor,
   surroundingAgent,
-  nsMinInstant,
-  nsMaxInstant,
+  minEpochNanoseconds,
+  maxEpochNanoseconds,
   type EpochNanoseconds,
   type IntegralNumber,
 } from '#self';
@@ -16,7 +16,7 @@ export function HostSystemUTCEpochNanoseconds(global: ObjectValue): EpochNanosec
   if (host === undefined) {
     host = BigInt(Date.now()) * BigInt(1e6) as EpochNanoseconds;
   }
-  return clamp(nsMinInstant, host, nsMaxInstant);
+  return clamp(minEpochNanoseconds, host, maxEpochNanoseconds);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-systemutcepochmilliseconds */

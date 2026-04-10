@@ -179,7 +179,6 @@ export function UTC_TemporalEdited(t: Num): TimeValue {
     if (possibleInstants.length > 0) {
       disambiguatedInstant = possibleInstants[0];
     } else {
-      // TODO(temporal): review
       // ii. Let possibleInstantsBefore be GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, ℝ(YearFromTime(tBefore)), ℝ(MonthFromTime(tBefore)) + 1, ℝ(DateFromTime(tBefore)), ℝ(HourFromTime(tBefore)), ℝ(MinFromTime(tBefore)), ℝ(SecFromTime(tBefore)), ℝ(msFromTime(tBefore)), 0, 0TimeValueToISODateTimeRecord(tBefore)), where tBefore is the largest integral Number < t for which possibleInstantsBefore is not empty (i.e., tBefore represents the last local time before the transition).
       let tBefore = Math.floor(t) - 1;
       let possibleInstantsBefore: bigint[] = [];

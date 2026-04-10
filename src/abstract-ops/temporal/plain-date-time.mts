@@ -10,7 +10,7 @@ import {
   GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, type RoundingMode,
 } from './addition.mts';
 import {
-  CreateISODateRecord, YearFromTime, MonthFromTime, DateFromTime, CreateTimeRecord, HourFromTime, MinFromTime, SecFromTime, msFromTime, type TimeRecord, ISODateToEpochDays, nsMinInstant, nsPerDay, nsMaxInstant, type CalendarType, type CalendarFieldsRecord, type PlainEvaluator, Q, CalendarDateFromFields, RegulateTime, Value, ObjectValue, GetTemporalOverflowOption, X, GetISODateTimeFor, MidnightTimeRecord, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, Throw, CanonicalizeCalendar, BalanceTime, AddDaysToISODate, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, PadISOYear, FormatTimeString, FormatCalendarAnnotation, CompareISODate, CompareTimeRecord, type TimeUnit, TemporalUnit, Assert, RoundTime, type InternalDurationRecord, DifferenceTime, TimeDurationSign, Add24HourDaysToTimeDuration, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, CombineDateAndTimeDuration, type PlainCompletion, ZeroDateDuration, RoundRelativeDuration, TotalRelativeDuration, type ValueEvaluator, CalendarEquals, GetDifferenceSettings, CreateTemporalDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecordWith24HourDays, AddTime, AdjustDateDurationRecord, CalendarDateAdd,
+  CreateISODateRecord, YearFromTime, MonthFromTime, DateFromTime, CreateTimeRecord, HourFromTime, MinFromTime, SecFromTime, msFromTime, type TimeRecord, ISODateToEpochDays, minEpochNanoseconds, nsPerDay, maxEpochNanoseconds, type CalendarType, type CalendarFieldsRecord, type PlainEvaluator, Q, CalendarDateFromFields, RegulateTime, Value, ObjectValue, GetTemporalOverflowOption, X, GetISODateTimeFor, MidnightTimeRecord, GetTemporalCalendarIdentifierWithISODefault, PrepareCalendarFields, JSStringValue, Throw, CanonicalizeCalendar, BalanceTime, AddDaysToISODate, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, PadISOYear, FormatTimeString, FormatCalendarAnnotation, CompareISODate, CompareTimeRecord, type TimeUnit, TemporalUnit, Assert, RoundTime, type InternalDurationRecord, DifferenceTime, TimeDurationSign, Add24HourDaysToTimeDuration, LargerOfTwoTemporalUnits, CalendarDateUntil, type DateUnit, CombineDateAndTimeDuration, type PlainCompletion, ZeroDateDuration, RoundRelativeDuration, TotalRelativeDuration, type ValueEvaluator, CalendarEquals, GetDifferenceSettings, CreateTemporalDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecordWith24HourDays, AddTime, AdjustDateDurationRecord, CalendarDateAdd,
   type Integer,
   type FiniteTimeValue,
   type MathematicalValue,
@@ -34,16 +34,12 @@ export function CombineISODateAndTimeRecord(isoDate: ISODateRecord, time: TimeRe
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isodatetimewithinlimits */
 export function ISODateTimeWithinLimits(isoDateTime: ISODateTimeRecord): boolean {
-  if (abs(ISODateToEpochDays(isoDateTime.ISODate.Year, isoDateTime.ISODate.Month - 1n, isoDateTime.ISODate.Day)) > 1e8 + 1) {
+  if (abs(ISODateToEpochDays(isoDateTime.ISODate.Year, isoDateTime.ISODate.Month - 1n, isoDateTime.ISODate.Day)) > (1e8 + 1)) {
     return false;
   }
-  const ns = GetUTCEpochNanoseconds(isoDateTime);
-  if (ns <= nsMinInstant - BigInt(nsPerDay)) {
-    return false;
-  }
-  if (ns >= nsMaxInstant + BigInt(nsPerDay)) {
-    return false;
-  }
+  const epochNanoseconds = GetUTCEpochNanoseconds(isoDateTime);
+  if (epochNanoseconds <= (minEpochNanoseconds - nsPerDay)) return false;
+  if (epochNanoseconds >= (maxEpochNanoseconds + nsPerDay)) return false;
   return true;
 }
 

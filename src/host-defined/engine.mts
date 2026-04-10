@@ -39,6 +39,7 @@ export interface Engine262Feature {
   name: string;
   flag: string;
   url: string;
+  enableInPlayground: boolean;
 }
 
 // unflag a feature when it reaches stage 3.
@@ -48,38 +49,45 @@ export const FEATURES = ([
     name: 'Decorators',
     flag: 'decorators',
     url: 'https://github.com/tc39/proposal-decorators',
+    enableInPlayground: true,
   },
   {
     name: 'Skip bugfix for field initializers in decorator',
     flag: 'decorators.no-bugfix.1',
     url: '',
+    enableInPlayground: false,
   },
   {
-    name: 'Temporal (wip)',
+    name: 'Temporal',
     flag: 'temporal',
     url: 'https://github.com/tc39/proposal-temporal',
+    enableInPlayground: true,
   },
   // stage 2.7
   {
     name: 'Iterator#join',
     flag: 'iterator.join',
     url: 'https://github.com/tc39/proposal-iterator-join',
+    enableInPlayground: true,
   },
   {
     name: 'Promise#allKeyed',
     flag: 'promise.allkeyed',
     url: 'https://github.com/tc39/proposal-await-dictionary',
+    enableInPlayground: true,
   },
   // stage 2
   {
     name: 'FinalizationRegistry#cleanupSome',
     flag: 'cleanup-some',
     url: 'https://github.com/tc39/proposal-cleanup-some',
+    enableInPlayground: true,
   },
   {
     name: 'RegExp Buffer Boundaries',
     flag: 'regexp-buffer-boundaries',
     url: 'https://github.com/tc39/proposal-regexp-buffer-boundaries',
+    enableInPlayground: true,
   },
 ]) as const satisfies Engine262Feature[];
 Object.freeze(FEATURES);

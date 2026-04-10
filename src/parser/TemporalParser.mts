@@ -8,8 +8,10 @@ import {
   CreateTemporalDuration,
   CreateTimeRecord,
   EnsureCompletion,
+  EpochTimeForYear,
   IsValidISODate,
   JSStringValue,
+  MathematicalInLeapYear,
   NormalCompletion,
   ObjectValue,
   Q,
@@ -45,8 +47,8 @@ export interface ISODateTimeParseRecord {
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-parseisodatetime */
-export function ParseISODateTime(isoString: string, allowedFormats: Array<'TemporalInstantString' | 'TemporalDateTimeString[~Zoned]' | 'TemporalTimeString' | 'TemporalMonthDayString' | 'TemporalYearMonthString' | 'TemporalDateTimeString[+Zoned]'>): PlainCompletion<ISODateTimeParseRecord> {
-  let parseResult: undefined | RFC9557ParseNode.AnnotatedDateTime | RFC9557ParseNode.TemporalTimeString | RFC9557ParseNode.TemporalInstantString | RFC9557ParseNode.TemporalMonthDayString | RFC9557ParseNode.TemporalYearMonthString;
+export function ParseISODateTime(isoString: string, allowedFormats: Array<'TemporalInstantString' | 'TemporalDateTimeString[~Zoned]' | 'TemporalTimeString' | 'TemporalMonthDayString' | 'TemporalYearMonthString' | 'TemporalDateTimeString[+Zoned]' | 'DateTimeString'>): PlainCompletion<ISODateTimeParseRecord> {
+  let parseResult: undefined | RFC9557ParseNode.AnnotatedDateTime | RFC9557ParseNode.TemporalTimeString | RFC9557ParseNode.TemporalInstantString | RFC9557ParseNode.TemporalMonthDayString | RFC9557ParseNode.TemporalYearMonthString | RFC9557ParseNode.DateTime;
   let calendar: string | undefined;
   let yearAbsent = false;
 
@@ -77,6 +79,7 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
     UTCDesignator = DateTimeUTCOffset?.UTCDesignator;
     UTCOffset = DateTimeUTCOffset?.UTCOffset;
   };
+  let lastError: ObjectValue | undefined;
   for (const goal of allowedFormats) {
     if (!parseResult) {
       const result = DateParser.parse(
@@ -139,12 +142,25 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
               }
               return node;
             }
+            case 'DateTimeString': {
+              // YYYY-MM-DDTHH:mm:ss.sssZ
+              const node = parser.with({ DateCompatibility: true }, () => parser.parseDateTime());
+              assignDateSpec(node.Date);
+              if (node.Time) assignTimeSpec(node.Time);
+              if (node.DateTimeUTCOffset) assignTimeZone(undefined, node.DateTimeUTCOffset);
+              return node;
+            }
             default:
               throw OutOfRange.exhaustive(goal);
           }
         },
+        { RangeError: true },
       );
-      if (!result || Array.isArray(result)) continue;
+      if (!result) continue;
+      if (Array.isArray(result)) {
+        lastError = result[0];
+        continue;
+      }
       parseResult = result;
       let calendarWasCritical = false;
 
@@ -193,7 +209,10 @@ export function ParseISODateTime(isoString: string, allowedFormats: Array<'Tempo
       break;
     }
   }
-  if (!parseResult) return Throw.RangeError('$1 does not match any of the allowed ISO 8601 formats', Value(isoString));
+  if (!parseResult) {
+    if (lastError) return ThrowCompletion(lastError);
+    return Throw.RangeError('$1 does not match any of productions ($2)', Value(isoString), allowedFormats.join(', '));
+  }
 
   month ??= 1n;
   day ??= 1n;
@@ -400,7 +419,8 @@ export function ParseDateTimeUTCOffset(offsetString: string): PlainCompletion<bi
     nanoseconds = 0n;
   } else {
     const fraction = `${parseResult.TemporalDecimalFraction.digits}000000000`;
-    const nanosecondsString = fraction.substring(1, 10);
+    // https://github.com/tc39/ecma262/pull/3759/changes#r3059351279
+    const nanosecondsString = fraction.substring(0, 9);
     nanoseconds = BigInt(nanosecondsString);
   }
   return sign * (((hours * 60n + minutes) * 60n + seconds) * BigInt(1e9) + nanoseconds);
@@ -569,6 +589,9 @@ export class DateParser {
     try {
       const parse = f(parser);
       parser.consumeAll();
+      if (parser.earlyErrors.length > 0) {
+        return parser.earlyErrors;
+      }
       return parse;
     } catch (error) {
       Assert(error instanceof ThrowCompletion && error.Value instanceof ObjectValue);
@@ -594,7 +617,10 @@ export class DateParser {
     Sep: false as boolean,
     // Throw RangeError over SyntaxError
     RangeError: false as boolean,
+    DateCompatibility: false as boolean,
   } as const;
+
+  private earlyErrors: ObjectValue[] = [];
 
   private raise: Throw = (message: string, ...args: Formattable[]) => {
     throw Reflect.apply(Throw[this.grammarParameters.RangeError ? 'RangeError' : 'SyntaxError'], null, [message, ...args]);
@@ -663,6 +689,10 @@ export class DateParser {
   private parseDateMonth(): bigint {
     const month = this.eatRegExp(/0[1-9]|1[0-2]/);
     if (!month) {
+      if (this.grammarParameters.DateCompatibility) {
+        const month = this.eatRegExp(/[1-9]/);
+        if (month) return BigInt(month);
+      }
       throw this.raise('Invalid DateMonth');
     }
     return BigInt(month);
@@ -672,6 +702,10 @@ export class DateParser {
   private parseDateDay(): bigint {
     const day = this.eatRegExp(/0[1-9]|[12][0-9]|3[01]/);
     if (!day) {
+      if (this.grammarParameters.DateCompatibility) {
+        const day = this.eatRegExp(/[1-9]/);
+        if (day) return BigInt(day);
+      }
       throw this.raise('Invalid DateDay');
     }
     return BigInt(day);
@@ -694,7 +728,9 @@ export class DateParser {
     const Month = this.parseDateMonth();
     this.parseDateSeparator(!!Extended);
     const Day = this.parseDateDay();
-    return { Year, Month, Day };
+    const result: RFC9557ParseNode.DateSpec = { Year, Month, Day };
+    this.IsValidDate(result);
+    return result;
   }
 
   with<T>(parameters: Partial<DateParser['grammarParameters']>, f: () => T): T {
@@ -714,7 +750,15 @@ export class DateParser {
 
   // TimeSecond ::: 00 to 60
   private parseTimeSecond(): bigint {
-    return BigInt(this.parse(/0[0-9]|[1-5][0-9]|60/, () => this.raise('Invalid second')));
+    const result = this.eatRegExp(/0[0-9]|[1-5][0-9]|60/);
+    if (!result) {
+      if (this.grammarParameters.DateCompatibility) {
+        const second = this.eatRegExp(/\d/);
+        if (second) return BigInt(second);
+      }
+      throw this.raise('Invalid second');
+    }
+    return BigInt(result);
   }
 
   //  TimeSeparator :::
@@ -782,7 +826,7 @@ export class DateParser {
   //  DateTime[Z, TimeRequired] :::
   //    [~TimeRequired] Date
   //                    Date DateTimeSeparator Time DateTimeUTCOffset[?Z]?
-  private parseDateTime(): RFC9557ParseNode.DateTime {
+  parseDateTime(): RFC9557ParseNode.DateTime {
     const Date = this.parseDate();
     if (!this.grammarParameters.TimeRequired) {
       if (!this.lookaheads(' ', 't', 'T')) {
@@ -821,13 +865,27 @@ export class DateParser {
   //    TimeDesignator Time DateTimeUTCOffset[~Z]? TimeZoneAnnotation? Annotations?
   //                   Time DateTimeUTCOffset[~Z]? TimeZoneAnnotation? Annotations?
   private parseAnnotatedTime(): RFC9557ParseNode.AnnotatedTime {
-    const TimeDesignator = this.eat('T', 't');
+    const startPos = this.pos;
 
+    const TimeDesignator = this.eat('T', 't');
     const Time = this.parseTime();
     const result: Mutable<RFC9557ParseNode.AnnotatedTime> = { TimeDesignator, Time };
     if (this.lookaheads('+', '-')) {
       result.DateTimeUTCOffset = this.with({ Z: false }, () => this.parseDateTimeUTCOffset());
     }
+
+    //  It is a Syntax Error if ParseText(Time DateTimeUTCOffset[~Z], DateSpecMonthDay) is a Parse Node.
+    //  It is a Syntax Error if ParseText(Time DateTimeUTCOffset[~Z], DateSpecYearMonth) is a Parse Node.
+    const text = this.input.slice(startPos, this.pos);
+    const ambiguous = DateParser.parse(text, (parser) => parser.try(() => parser.parseDateSpecMonthDay(), true) || parser.try(() => parser.parseDateSpecYearMonth(), true));
+    if (!Array.isArray(ambiguous)) {
+      try {
+        this.raise('Date $1 is ambiguous', text);
+      } catch (error) {
+        this.earlyErrors.push((error as ThrowCompletion).Value as ObjectValue);
+      }
+    }
+
     if (this.lookahead('[')) {
       result.TimeZoneAnnotation = this.try(() => this.parseTimeZoneAnnotation(), false);
     }
@@ -856,6 +914,7 @@ export class DateParser {
   try<T>(f: () => T, consumeAll: boolean): T | undefined {
     const startPos = this.pos;
     const oldParameter = this.grammarParameters;
+    const oldEarlyErrors = [...this.earlyErrors];
     try {
       const result = f();
       if (consumeAll) {
@@ -864,6 +923,7 @@ export class DateParser {
       return result;
     } catch {
       this.pos = startPos;
+      this.earlyErrors = oldEarlyErrors;
       return undefined;
     } finally {
       this.grammarParameters = oldParameter;
@@ -966,7 +1026,7 @@ export class DateParser {
   //    DateSpecYearMonth TimeZoneAnnotation? Annotations?
   parseAnnotatedYearMonth(): RFC9557ParseNode.AnnotatedYearMonth {
     const DateSpecYearMonth = this.parseDateSpecYearMonth();
-    const TimeZoneAnnotation = this.lookahead('[') ? this.parseTimeZoneAnnotation() : undefined;
+    const TimeZoneAnnotation = this.lookahead('[') ? this.try(() => this.parseTimeZoneAnnotation(), false) : undefined;
     const Annotations = this.lookahead('[') ? this.parseAnnotations() : undefined;
     return { DateSpecYearMonth, TimeZoneAnnotation, Annotations };
   }
@@ -985,7 +1045,7 @@ export class DateParser {
   //    DateSpecMonthDay TimeZoneAnnotation? Annotations?
   parseAnnotatedMonthDay(): RFC9557ParseNode.AnnotatedMonthDay {
     const DateSpecMonthDay = this.parseDateSpecMonthDay();
-    const TimeZoneAnnotation = this.lookahead('[') ? this.parseTimeZoneAnnotation() : undefined;
+    const TimeZoneAnnotation = this.lookahead('[') ? this.try(() => this.parseTimeZoneAnnotation(), false) : undefined;
     const Annotations = this.lookahead('[') ? this.parseAnnotations() : undefined;
     return { DateSpecMonthDay, TimeZoneAnnotation, Annotations };
   }
@@ -1065,12 +1125,28 @@ export class DateParser {
 
   //  Hour :: number 00 to 23
   parseHour(): bigint {
-    return BigInt(this.parse(/([01]\d)|(2[0123])/, () => this.raise('Invalid hour')));
+    const result = this.eatRegExp(/([01]\d)|(2[0123])/);
+    if (!result) {
+      if (this.grammarParameters.DateCompatibility) {
+        const hour = this.eatRegExp(/\d/);
+        if (hour) return BigInt(hour);
+      }
+      throw this.raise('Invalid hour');
+    }
+    return BigInt(result);
   }
 
   //  MinuteSecond :: number 00 to 59
   parseMinuteSecond(): bigint {
-    return BigInt(this.parse(/[0-5]\d/, () => this.raise('Invalid minute or second')));
+    const result = this.eatRegExp(/[0-5]\d/);
+    if (!result) {
+      if (this.grammarParameters.DateCompatibility) {
+        const minuteSecond = this.eatRegExp(/\d/);
+        if (minuteSecond) return BigInt(minuteSecond);
+      }
+      throw this.raise('Invalid minute or second');
+    }
+    return BigInt(result);
   }
 
   //  TemporalDecimalFraction ::: [.,][0-9]{1,9}
@@ -1093,7 +1169,9 @@ export class DateParser {
     const Month = this.parseDateMonth();
     this.parseDateSeparatorExtendedOrNot();
     const Day = this.parseDateDay();
-    return { Month, Day };
+    const result: RFC9557ParseNode.DateSpecMonthDay = { Month, Day };
+    this.IsValidMonthDay(result);
+    return result;
   }
 
   // DateSpecYearMonth ::: DateYear DateSeparator[+Extended][~Extended] DateMonth
@@ -1146,4 +1224,23 @@ export class DateParser {
     return this.parse(/[a-z_][a-z_0-9-]*/, () => this.raise('Expected AnnotationKey'));
   }
   // #endregion
+
+  /** https://tc39.es/ecma262/pr/3759/#sec-rfc9557grammar-static-semantics-isvalidmonthday */
+  IsValidMonthDay(node: RFC9557ParseNode.DateSpec | RFC9557ParseNode.DateSpecMonthDay) {
+    if (
+      (node.Day === 31n && [2n, 4n, 6n, 9n, 11n].includes(node.Month))
+      || (node.Month === 2n && node.Day === 30n)
+    ) {
+      this.raise('Invalid month-day combination: $1-$2', node.Month.toString().padStart(2, '0'), node.Day.toString().padStart(2, '0'));
+    }
+  }
+
+  /** https://tc39.es/ecma262/pr/3759/#sec-rfc9557grammar-static-semantics-isvaliddate */
+  IsValidDate(node: RFC9557ParseNode.DateSpec) {
+    this.IsValidMonthDay(node);
+    const year = node.Year;
+    if (node.Month === 2n && node.Day === 29n && !MathematicalInLeapYear(EpochTimeForYear(year))) {
+      this.raise('Invalid date: $1 is not a leap year, so February does not have 29 days', year);
+    }
+  }
 }

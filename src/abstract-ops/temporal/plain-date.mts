@@ -80,7 +80,7 @@ export function* ToTemporalDate(item: Value, options: Value = Value.undefined): 
   const resolvedOptions = Q(GetOptionsObject(options));
   Q(yield* GetTemporalOverflowOption(resolvedOptions));
   const isoDate = CreateISODateRecord(result.Year!, result.Month, result.Day);
-  return X(CreateTemporalDate(isoDate, calendarType));
+  return Q(yield* CreateTemporalDate(isoDate, calendarType));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-comparesurpasses */

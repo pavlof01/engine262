@@ -1,7 +1,7 @@
 import type { TemporalDurationObject } from '../../intrinsics/Temporal/Duration.mts';
 import type { ISODateRecord } from '../../intrinsics/Temporal/PlainDate.mts';
 import { type TemporalZonedDateTimeObject, isTemporalZonedDateTimeObject } from '../../intrinsics/Temporal/ZonedDateTime.mts';
-import { ParseISODateTime, ParseDateTimeUTCOffset } from '../../parser/TemporalParser.mts';
+import { ParseISODateTime, ParseDateTimeUTCOffset, DateParser } from '../../parser/TemporalParser.mts';
 import { Decimal } from '../../host-defined/decimal.mts';
 import {
   GetOptionsObject,
@@ -121,17 +121,16 @@ export function* ToTemporalZonedDateTime(
     if (result.TimeZone.Z) {
       hasUTCDesignator = true;
     }
-    let calendar = result.Calendar;
-    if (calendar === undefined) {
-      calendar = 'iso8601';
-    }
+    calendar = result.Calendar as CalendarType ?? 'iso8601';
     calendar = Q(CanonicalizeCalendar(calendar));
     matchBehaviour = 'match-minutes';
     if (offsetString) {
-      // TODO(temporal):
-      // i. Let offsetParseResult be ParseText(StringToCodePoints(offsetString), UTCOffset[+SubMinutePrecision]).
-      // ii. Assert: offsetParseResult is a Parse Node.
-      // iii. If offsetParseResult contains more than one MinuteSecond Parse Node, set matchBehaviour to match-exactly.
+      const offsetParseResult = DateParser.parse(offsetString, (parser) => parser.with({ SubMinutePrecision: true }, () => parser.parseUTCOffset()));
+      Assert(offsetParseResult && !Array.isArray(offsetParseResult));
+      // If offsetParseResult contains more than one MinuteSecond Parse Node, set matchBehaviour to match-exactly.
+      if (offsetParseResult.Minute !== undefined && offsetParseResult.Second !== undefined) {
+        matchBehaviour = 'match-exactly';
+      }
     }
     const resolvedOptions = Q(GetOptionsObject(options));
     disambiguation = Q(yield* GetTemporalDisambiguationOption(resolvedOptions));
@@ -153,7 +152,7 @@ export function* ToTemporalZonedDateTime(
     offsetNanoseconds = X(ParseDateTimeUTCOffset(offsetString!));
   }
   const epochNanoseconds = Q(InterpretISODateTimeOffset(isoDate, time, offsetBehaviour, offsetNanoseconds, timeZone, disambiguation, offsetOption, matchBehaviour));
-  return X(CreateTemporalZonedDateTime(epochNanoseconds, timeZone, calendar!));
+  return X(CreateTemporalZonedDateTime(epochNanoseconds, timeZone, calendar));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-createtemporalzoneddatetime */

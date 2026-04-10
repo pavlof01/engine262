@@ -106,4 +106,12 @@ export class Decimal {
     }
     return new Decimal(integerPart);
   }
+
+  ceil() {
+    const [integerPart, fractionalPart] = this.value.toString().split('.');
+    if (fractionalPart && this.greaterThan(0)) {
+      return new Decimal(integerPart).add(1);
+    }
+    return new Decimal(integerPart);
+  }
 }

@@ -17,13 +17,13 @@ import {
 /** https://tc39.es/proposal-temporal/#eqn-nsPerDay */
 export const nsPerDay = BigInt(8.64e13) as EpochNanoseconds;
 /** https://tc39.es/proposal-temporal/#eqn-nsMaxInstant */
-export const nsMaxInstant = BigInt(8.64e21) as EpochNanoseconds;
+export const maxEpochNanoseconds = BigInt(8.64e21) as EpochNanoseconds;
 /** https://tc39.es/proposal-temporal/#eqn-nsMinInstant */
-export const nsMinInstant = BigInt(-8.64e21) as EpochNanoseconds;
+export const minEpochNanoseconds = BigInt(-8.64e21) as EpochNanoseconds;
 
 /** https://tc39.es/proposal-temporal/#sec-temporal-isvalidepochnanoseconds */
 export function IsValidEpochNanoseconds(epochNanoseconds: EpochNanoseconds): boolean {
-  if (epochNanoseconds < nsMinInstant || epochNanoseconds > nsMaxInstant) {
+  if (epochNanoseconds < minEpochNanoseconds || epochNanoseconds > maxEpochNanoseconds) {
     return false;
   }
   return true;

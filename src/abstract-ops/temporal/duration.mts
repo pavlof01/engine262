@@ -131,17 +131,13 @@ export function TemporalDurationFromInternal(internalDuration: InternalDurationR
   } else if (largestUnit === TemporalUnit.Millisecond) {
     microseconds = floorDiv(nanoseconds, 1000n);
     nanoseconds = modulo(nanoseconds, 1000n);
-    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
-    milliseconds = BigInt(Number(floorDiv(microseconds, 1000n)));
+    milliseconds = floorDiv(microseconds, 1000n);
     microseconds = modulo(microseconds, 1000n);
   } else if (largestUnit === TemporalUnit.Microsecond) {
-    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
-    microseconds = BigInt(Number(floorDiv(nanoseconds, 1000n)));
+    microseconds = floorDiv(nanoseconds, 1000n);
     nanoseconds = modulo(nanoseconds, 1000n);
   } else {
     Assert(largestUnit === TemporalUnit.Nanosecond);
-    // https://github.com/tc39/ecma262/pull/3759/files/b905c08acd176f93215140daa0dddc8935b20fb5#diff-46da5350aa773fc90f84b2843468b534a32866793a1e346dca2b4d1f29c24a01
-    nanoseconds = BigInt(Number(nanoseconds));
   }
   return CreateTemporalDuration(BigInt(internalDuration.Date.Years), BigInt(internalDuration.Date.Months), BigInt(internalDuration.Date.Weeks), BigInt(internalDuration.Date.Days) + days * sign, hours * sign, minutes * sign, seconds * sign, milliseconds * sign, microseconds * sign, nanoseconds * sign);
 }
@@ -423,16 +419,16 @@ export function* CreateTemporalDuration(
     'Microseconds',
     'Nanoseconds',
   ])) as Mutable<TemporalDurationObject>;
-  object.Years = years;
-  object.Months = months;
-  object.Weeks = weeks;
-  object.Days = days;
-  object.Hours = hours;
-  object.Minutes = minutes;
-  object.Seconds = seconds;
-  object.Milliseconds = milliseconds;
-  object.Microseconds = microseconds;
-  object.Nanoseconds = nanoseconds;
+  object.Years = BigInt(Number(years));
+  object.Months = BigInt(Number(months));
+  object.Weeks = BigInt(Number(weeks));
+  object.Days = BigInt(Number(days));
+  object.Hours = BigInt(Number(hours));
+  object.Minutes = BigInt(Number(minutes));
+  object.Seconds = BigInt(Number(seconds));
+  object.Milliseconds = BigInt(Number(milliseconds));
+  object.Microseconds = BigInt(Number(microseconds));
+  object.Nanoseconds = BigInt(Number(nanoseconds));
   return object;
 }
 

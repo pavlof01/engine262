@@ -114,7 +114,9 @@ function ZonedDateTimeProto_eraGetter(_args: Arguments, { thisValue }: FunctionC
 function ZonedDateTimeProto_eraYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
-  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).EraYear));
+  const result = CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).EraYear;
+  if (result === undefined) return Value.undefined;
+  return F(Number(result));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.year */
@@ -193,7 +195,7 @@ function ZonedDateTimeProto_daysInWeekGetter(_args: Arguments, { thisValue }: Fu
 function ZonedDateTimeProto_daysInMonthGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
-  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DaysInMonth))
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).DaysInMonth));
 }
 
 /** https://tc39.es/ecma262/pr/3759/#sec-get-temporal.zoneddatetime.prototype.daysinyear */
@@ -226,7 +228,7 @@ function ZonedDateTimeProto_hoursInDayGetter(_args: Arguments, { thisValue }: Fu
 function ZonedDateTimeProto_weekOfYearGetter(_args: Arguments, { thisValue }: FunctionCallContext): PlainCompletion<Value> {
   const zonedDateTime = Q(thisTemporalZonedDateTimeValue(thisValue));
   const isoDateTime = GetISODateTimeFor(zonedDateTime.TimeZone, zonedDateTime.EpochNanoseconds);
-  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).WeekOfYear));
+  return F(Number(CalendarISOToDate(zonedDateTime.Calendar, isoDateTime.ISODate).WeekOfYear.Week));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-get-temporal.zoneddatetime.prototype.minute */
@@ -589,10 +591,10 @@ export function bootstrapTemporalZonedDateTimePrototype(realmRec: Realm) {
     ['valueOf', ZonedDateTimeProto_valueOf, 0],
     ['startOfDay', ZonedDateTimeProto_startOfDay, 0],
     ['getTimeZoneTransition', ZonedDateTimeProto_getTimeZoneTransition, 1],
-    ['toInstant', [ZonedDateTimeProto_toInstant]],
-    ['toPlainDate', [ZonedDateTimeProto_toPlainDate]],
-    ['toPlainTime', [ZonedDateTimeProto_toPlainTime]],
-    ['toPlainDateTime', [ZonedDateTimeProto_toPlainDateTime]],
+    ['toInstant', ZonedDateTimeProto_toInstant, 0],
+    ['toPlainDate', ZonedDateTimeProto_toPlainDate, 0],
+    ['toPlainTime', ZonedDateTimeProto_toPlainTime, 0],
+    ['toPlainDateTime', ZonedDateTimeProto_toPlainDateTime, 0],
   ], realmRec.Intrinsics['%Object.prototype%'], 'Temporal.ZonedDateTime');
   realmRec.Intrinsics['%Temporal.ZonedDateTime.prototype%'] = prototype;
   return prototype;

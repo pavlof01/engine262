@@ -425,10 +425,10 @@ export function* GetTemporalUnitValuedOption(
   }
   const stringValue = Q(yield* ToString(value)).stringValue();
   if (stringValue === 'auto') return 'auto';
-  const result = table74.find(value => stringValue === value.Plural || stringValue === value.Singular);
+  const result = table74.find((value) => stringValue === value.Plural || stringValue === value.Singular);
   // If stringValue is not listed in the "Singular property name" or "Plural property name" columns of Table 74, throw a RangeError exception.
   if (!result) {
-    return Throw.RangeError('option $1 does not accept value $2 (only $3 accepted)', key, stringValue, table74.map(x => x.Singular).join(', '));
+    return Throw.RangeError('option $1 does not accept value $2 (only $3 accepted)', key, stringValue, table74.map((x) => x.Singular).join(', '));
   }
   return result.Value;
 }
@@ -676,17 +676,11 @@ export function ApplyUnsignedRoundingMode(
   r2: MathematicalValue,
   unsignedRoundingMode?: UnsignedRoundingMode,
 ): MathematicalValue {
-  if (x.equals(r1)) {
-    return r1;
-  }
+  if (x.equals(r1)) return r1;
   Assert(r1.lessThan(x) && x.lessThan(r2));
   Assert(unsignedRoundingMode !== undefined);
-  if (unsignedRoundingMode === UnsignedRoundingMode.Zero) {
-    return r1;
-  }
-  if (unsignedRoundingMode === UnsignedRoundingMode.Infinity) {
-    return r2;
-  }
+  if (unsignedRoundingMode === UnsignedRoundingMode.Zero) return r1;
+  if (unsignedRoundingMode === UnsignedRoundingMode.Infinity) return r2;
   const d1 = x.subtract(r1);
   const d2 = r2.subtract(x);
   if (d1.lessThan(d2)) {
@@ -745,7 +739,7 @@ export function RoundNumberToIncrementAsIfPositive(
   const quotient = x.divide(increment);
   const unsignedRoundingMode = GetUnsignedRoundingMode(roundingMode, 'positive');
   // Let r1 be the largest integer such that r1 ≤ quotient.
-  const r1 = quotient.truncate(); // quotient is always positive
+  const r1 = quotient.floor();
   // Let r2 be the smallest integer such that r2 > quotient.
   const r2 = r1.add(1);
   const rounded = ApplyUnsignedRoundingMode(quotient, r1, r2, unsignedRoundingMode);
@@ -831,7 +825,7 @@ export function* GetDifferenceSettings(
   const roundingIncrement = Q(yield* GetRoundingIncrementOption(options));
   let roundingMode = Q(yield* GetRoundingModeOption(options, RoundingMode.Trunc));
   let smallestUnit = Q(yield* GetTemporalUnitValuedOption(options, 'smallestUnit', 'unset'));
-  Q(ValidateTemporalUnitValue(smallestUnit, unitGroup, ['auto']));
+  Q(ValidateTemporalUnitValue(largestUnit, unitGroup, ['auto']));
   if (largestUnit === 'unset') {
     largestUnit = 'auto';
   }
