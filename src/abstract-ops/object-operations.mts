@@ -3,12 +3,14 @@ import {
   JSStringValue, BooleanValue,
   Value,
   ObjectValue,
+  SymbolValue,
   wellKnownSymbols,
   type PropertyKeyValue,
   UndefinedValue,
   NullValue,
   type Arguments,
 } from '../value.mts';
+import { OperationHandle } from '../trace-builder.mts';
 import {
   surroundingAgent,
 } from '../host-defined/engine.mts';
@@ -46,7 +48,7 @@ import {
   ToPropertyKey,
   CanonicalizeKeyedCollectionKey,
   Throw,
-} from '#self';
+} from '../index.mts';
 
 
 // This file covers abstract operations defined in
@@ -73,18 +75,40 @@ export function MakeBasicObject<const T extends string>(internalSlotsList: reado
   return obj;
 }
 
+function propKeyName(P: PropertyKeyValue): string {
+  if (P instanceof JSStringValue) return P.stringValue();
+  if (P instanceof SymbolValue) {
+    const desc = P.Description;
+    return desc instanceof JSStringValue ? `@@${desc.stringValue().replace(/^Symbol\./, '')}` : '@@Symbol';
+  }
+  return String(P);
+}
+
 /** https://tc39.es/ecma262/#sec-get-o-p */
 export function* Get(O: ObjectValue, P: PropertyKeyValue): ValueEvaluator {
   Assert(O instanceof ObjectValue);
   Assert(IsPropertyKey(P));
-  return Q(yield* O.Get(P, O));
+  const propName = propKeyName(P);
+  const op = OperationHandle.begin(O.trace, 'Get', O);
+  op.log({ kind: 'if', taken: true, hint: `Step 3: Return ? O.[[Get]]("${propName}", O).` });
+  const result = Q(yield* O.Get(P, O));
+  const resultStr = result instanceof JSStringValue ? `"${result.stringValue()}"` : result === Value.undefined ? 'undefined' : result.type;
+  op.log({ kind: 'return', hint: `Get(O, "${propName}") → ${resultStr}` }, result);
+  return result;
 }
 
 /** https://tc39.es/ecma262/#sec-getv */
 export function* GetV(V: Value, P: PropertyKeyValue): ValueEvaluator {
   Assert(IsPropertyKey(P));
+  const propName = propKeyName(P);
+  const op = OperationHandle.begin(V.trace, 'GetV', V);
+  op.log({ kind: 'call', hint: 'Step 2: Let O be ? ToObject(V).' });
   const O = Q(ToObject(V));
-  return Q(yield* O.Get(P, V));
+  op.log({ kind: 'call', hint: `Step 3: Return ? O.[[Get]]("${propName}", V).` });
+  const result = Q(yield* O.Get(P, V));
+  const resultStr = result instanceof JSStringValue ? `"${result.stringValue()}"` : result === Value.undefined ? 'undefined' : result.type;
+  op.log({ kind: 'return', hint: `GetV(V, "${propName}") → ${resultStr}` }, result);
+  return result;
 }
 
 /** https://tc39.es/ecma262/#sec-set-o-p-v-throw */
@@ -174,13 +198,19 @@ export function* DeletePropertyOrThrow(O: ObjectValue, P: PropertyKeyValue) {
 /** https://tc39.es/ecma262/#sec-getmethod */
 export function* GetMethod(V: Value, P: PropertyKeyValue): ValueEvaluator<UndefinedValue | FunctionObject> {
   Assert(IsPropertyKey(P));
+  const propName = propKeyName(P);
+  const op = OperationHandle.begin(V.trace, 'GetMethod', V);
+  op.log({ kind: 'call', hint: `Step 2: Let func be ? GetV(V, "${propName}").` });
   const func = Q(yield* GetV(V, P));
   if (func === Value.null || func === Value.undefined) {
+    op.log({ kind: 'return', hint: `GetMethod(V, "${propName}") → undefined (property is null/undefined)` }, Value.undefined);
     return Value.undefined;
   }
   if (!IsCallable(func)) {
+    op.log({ kind: 'throw', hint: `GetMethod(V, "${propName}") → TypeError (not a function)` });
     return Throw.TypeError('$1 is not a function', func);
   }
+  op.log({ kind: 'return', hint: `GetMethod(V, "${propName}") → callable function found` }, func);
   return func;
 }
 
@@ -205,12 +235,15 @@ export function* HasOwnProperty(O: ObjectValue, P: PropertyKeyValue): ValueEvalu
 /** https://tc39.es/ecma262/#sec-call */
 export function* Call(F: Value, V: Value, argumentsList: Arguments = []): ValueEvaluator {
   Assert(argumentsList.every((a) => a instanceof Value));
-
+  const op = OperationHandle.begin(V.trace, 'Call', V);
   if (!IsCallable(F)) {
+    op.log({ kind: 'throw', hint: 'Step 2: F is not callable — throw TypeError.' });
     return surroundingAgent.Throw('TypeError', 'NotAFunction', F);
   }
-
-  return EnsureCompletion(Q(yield* F.Call(V, argumentsList)));
+  op.log({ kind: 'if', taken: true, hint: 'Step 2: F is callable — proceed.' });
+  const result = EnsureCompletion(Q(yield* F.Call(V, argumentsList)));
+  op.log({ kind: 'return', hint: 'Step 3: Return ? F.[[Call]](V, argumentsList).' });
+  return result;
 }
 
 /** https://tc39.es/ecma262/#sec-construct */

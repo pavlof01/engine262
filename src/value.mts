@@ -7,6 +7,7 @@ import {
 } from './helpers.mts';
 import type { PrivateElementRecord } from './runtime-semantics/MethodDefinitionEvaluation.mts';
 import type { PlainEvaluator } from './evaluator.mts';
+import { TraceRecord } from './trace.mts';
 import {
   Assert,
   OrdinaryDefineOwnProperty,
@@ -35,6 +36,8 @@ let createNumberValue: (value: number) => NumberValue; // set by static block in
 let createBigIntValue: (value: bigint) => BigIntValue; // set by static block in BigIntValue for privileged access to constructor
 
 abstract class BaseValue {
+  trace: TraceRecord = new TraceRecord();
+
   static declare readonly null: NullValue; // defined in static block of NullValue
 
   static declare readonly undefined: UndefinedValue; // defined in static block of UndefinedValue

@@ -1,5 +1,7 @@
 import {
-  UndefinedValue, JSStringValue, SymbolValue,
+  UndefinedValue,
+  JSStringValue,
+  SymbolValue,
   ObjectValue,
   Value,
   NumberValue,
@@ -9,21 +11,17 @@ import {
   BooleanValue,
   PrimitiveValue,
   type PropertyKeyValue,
-} from '../value.mts';
-import {
-  surroundingAgent,
-} from '../host-defined/engine.mts';
-import {
-  Q, X,
-  type ValueCompletion,
-} from '../completion.mts';
-import { OutOfRange, type Mutable } from '../helpers.mts';
-import { MV_StringNumericLiteral } from '../runtime-semantics/all.mts';
-import type { BooleanObject } from '../intrinsics/Boolean.mts';
-import type { NumberObject } from '../intrinsics/Number.mts';
-import type { SymbolObject } from '../intrinsics/Symbol.mts';
-import type { BigIntObject } from '../intrinsics/BigInt.mts';
-import type { PlainEvaluator, ValueEvaluator } from '../evaluator.mts';
+} from "../value.mts";
+import { surroundingAgent } from "../host-defined/engine.mts";
+import { Q, X, type ValueCompletion } from "../completion.mts";
+import { OutOfRange, type Mutable } from "../helpers.mts";
+import { MV_StringNumericLiteral } from "../runtime-semantics/all.mts";
+import type { BooleanObject } from "../intrinsics/Boolean.mts";
+import type { NumberObject } from "../intrinsics/Number.mts";
+import type { SymbolObject } from "../intrinsics/Symbol.mts";
+import type { BigIntObject } from "../intrinsics/BigInt.mts";
+import type { PlainEvaluator, ValueEvaluator } from "../evaluator.mts";
+import { OperationHandle } from "../trace-builder.mts";
 import {
   Assert,
   Call,
@@ -34,159 +32,296 @@ import {
   SameValue,
   StringCreate,
   Z,
-  F, R,
-} from './all.mts';
+  F,
+  R,
+} from "./all.mts";
 
 /** https://tc39.es/ecma262/#sec-toprimitive */
-export function* ToPrimitive(input: Value, preferredType?: 'string' | 'number'): ValueEvaluator<PrimitiveValue> {
+export function* ToPrimitive(input: Value, preferredType?: "string" | "number"): ValueEvaluator<PrimitiveValue> {
+  const op = OperationHandle.begin(input.trace, "ToPrimitive", input);
   // 1. Assert: input is an ECMAScript language value.
   Assert(input instanceof Value);
+  op.log({ kind: "assert", hint: "Step 1: Assert — input is an ECMAScript language value." });
   // 2. If Type(input) is Object, then
   if (input instanceof ObjectValue) {
+    op.log({ kind: "if", taken: true, hint: "Step 2: input is an Object — look for @@toPrimitive method." });
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
+    op.log({
+      kind: "call",
+      hint: "Step 2a: Let exoticToPrim be ? GetMethod(input, @@toPrimitive).",
+    });
     const exoticToPrim = Q(yield* GetMethod(input, wellKnownSymbols.toPrimitive));
     // b. If exoticToPrim is not undefined, then
     if (exoticToPrim !== Value.undefined) {
+      op.log({ kind: "if", taken: true, hint: "Step 2b: exoticToPrim is not undefined — determine hint string." });
+      // i–iii. Determine hint string.
       let hint;
-      // i. If preferredType is not present, let hint be "default".
       if (preferredType === undefined) {
-        hint = Value('default');
-      } else if (preferredType === 'string') { // ii. Else if preferredType is string, let hint be "string".
-        hint = Value('string');
-      } else { // iii. Else,
-        // 1. Assert: preferredType is number.
-        Assert(preferredType === 'number');
-        // 2. Let hint be "number".
-        hint = Value('number');
+        hint = Value("default");
+        op.log({ kind: "if", taken: true, hint: 'Step 2b-i: preferredType is not present — let hint be "default".' });
+      } else if (preferredType === "string") {
+        hint = Value("string");
+        op.log({ kind: "if", taken: true, hint: 'Step 2b-ii: preferredType is "string" — let hint be "string".' });
+      } else {
+        Assert(preferredType === "number");
+        hint = Value("number");
+        op.log({ kind: "note", hint: 'Step 2b-iii: preferredType is "number" — let hint be "number".' });
       }
       // iv. Let result be ? Call(exoticToPrim, input, « hint »).
+      op.log({
+        kind: "call",
+        hint: `Step 2b-iv: Let result be ? Call(exoticToPrim, input, « "${(hint as JSStringValue).stringValue()}" »).`,
+      });
       const result = Q(yield* Call(exoticToPrim, input, [hint]));
       // v. If Type(result) is not Object, return result.
       if (!(result instanceof ObjectValue)) {
+        op.log(
+          { kind: "return", hint: `Step 2b-v: result is not an Object (${result.type}) — return result.` },
+          result,
+        );
         return result;
       }
       // vi. Throw a TypeError exception.
-      return surroundingAgent.Throw('TypeError', 'ObjectToPrimitive');
+      op.log({ kind: "throw", hint: "Step 2b-vi: result is an Object — throw TypeError." });
+      return surroundingAgent.Throw("TypeError", "ObjectToPrimitive");
     }
+    op.log({
+      kind: "if",
+      taken: false,
+      hint: "Step 2b: exoticToPrim is undefined — fall back to OrdinaryToPrimitive.",
+    });
     // c. If preferredType is not present, let preferredType be number.
     if (preferredType === undefined) {
-      preferredType = 'number';
+      preferredType = "number";
     }
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 2c: preferredType → "${preferredType}" — call OrdinaryToPrimitive.`,
+    });
     // d. Return ? OrdinaryToPrimitive(input, preferredType).
-    return Q(yield* OrdinaryToPrimitive(input, preferredType));
+    op.log({
+      kind: "call",
+      hint: `Step 2d: Return ? OrdinaryToPrimitive(input, "${preferredType}").`,
+    });
+    const primResult = Q(yield* OrdinaryToPrimitive(input, preferredType));
+    op.log({ kind: "return", hint: `Step 2d: OrdinaryToPrimitive returned ${primResult.type}.` }, primResult);
+    return primResult;
   }
   // 3. Return input.
+  op.log({ kind: "return", hint: "Step 3: input is already a primitive — return input as-is." }, input);
   return input;
 }
 
 /** https://tc39.es/ecma262/#sec-ordinarytoprimitive */
-export function* OrdinaryToPrimitive(O: ObjectValue, hint: 'string' | 'number'): ValueEvaluator<PrimitiveValue> {
+export function* OrdinaryToPrimitive(O: ObjectValue, hint: "string" | "number"): ValueEvaluator<PrimitiveValue> {
+  const op = OperationHandle.begin(O.trace, "OrdinaryToPrimitive", O);
   // 1. Assert: Type(O) is Object.
   Assert(O instanceof ObjectValue);
   // 2. Assert: hint is either string or number.
-  Assert(hint === 'string' || hint === 'number');
+  Assert(hint === "string" || hint === "number");
   let methodNames;
   // 3. If hint is string, then
-  if (hint === 'string') {
+  if (hint === "string") {
     // a. Let methodNames be « "toString", "valueOf" ».
-    methodNames = [Value('toString'), Value('valueOf')];
-  } else { // 4. Else,
+    methodNames = [Value("toString"), Value("valueOf")];
+    op.log({ kind: "if", taken: true, hint: 'Step 3: hint is "string" — methodNames = « "toString", "valueOf" ».' });
+  } else {
+    // 4. Else,
     // a. Let methodNames be « "valueOf", "toString" ».
-    methodNames = [Value('valueOf'), Value('toString')];
+    methodNames = [Value("valueOf"), Value("toString")];
+    op.log({ kind: "if", taken: true, hint: 'Step 4: hint is "number" — methodNames = « "valueOf", "toString" ».' });
   }
   // 5. For each element name of methodNames, do
   for (const name of methodNames) {
+    const nameStr = (name as JSStringValue).stringValue();
     // a. Let method be ? Get(O, name).
+    op.log({ kind: "call", hint: `Step 5a: Let method be ? Get(O, "${nameStr}").` });
     const method = Q(yield* Get(O, name));
     // b. If IsCallable(method) is true, then
     if (IsCallable(method)) {
+      op.log({ kind: "if", taken: true, hint: `Step 5b: ${nameStr} is callable.` });
       // i. Let result be ? Call(method, O).
+      op.log({
+        kind: "call",
+        hint: `Step 5b-i: Let result be ? Call(method, O) — calling ${nameStr}().`,
+      });
       const result = Q(yield* Call(method, O));
       // ii. If Type(result) is not Object, return result.
       if (!(result instanceof ObjectValue)) {
+        op.log(
+          { kind: "return", hint: `Step 5b-ii: ${nameStr}() returned a primitive (${result.type}) — return result.` },
+          result,
+        );
         return result;
       }
+      op.log({ kind: "if", taken: false, hint: `Step 5b-ii: ${nameStr}() returned an Object — try next method.` });
+    } else {
+      op.log({ kind: "if", taken: false, hint: `Step 5b: ${nameStr} is not callable — skip, try next method.` });
     }
   }
   // 6. Throw a TypeError exception.
-  return surroundingAgent.Throw('TypeError', 'ObjectToPrimitive');
+  op.log({ kind: "throw", hint: "Step 6: No method returned a primitive — throw TypeError." });
+  return surroundingAgent.Throw("TypeError", "ObjectToPrimitive");
 }
 
 /** https://tc39.es/ecma262/#sec-toboolean */
 export function ToBoolean(argument: Value): BooleanValue {
+  const op = OperationHandle.begin(argument.trace, "ToBoolean", argument);
   if (argument instanceof UndefinedValue) {
-    // Return false.
+    op.log({ kind: "return", value: "false", type: argument.type, hint: "If argument is undefined, return false." });
     return Value.false;
   } else if (argument instanceof NullValue) {
-    // Return false.
+    op.log({ kind: "return", value: "false", type: argument.type, hint: "If argument is null, return false." });
     return Value.false;
   } else if (argument instanceof BooleanValue) {
-    // Return argument.
+    op.log({
+      kind: "return",
+      value: argument === Value.true ? "true" : "false",
+      type: argument.type,
+      hint: "Argument is already boolean, return as-is.",
+    });
     return argument;
   } else if (argument instanceof NumberValue) {
-    // If argument is +0𝔽, -0𝔽, or NaN, return false; otherwise return true.
+    op.log({
+      kind: "if",
+      value: String(R(argument)),
+      type: argument.type,
+      hint: "If number is +0, -0, or NaN, return false; otherwise true.",
+    });
     if (R(argument) === 0 || argument.isNaN()) {
       return Value.false;
     }
   } else if (argument instanceof JSStringValue) {
-    // If argument is the empty String, return false; otherwise return true.
+    op.log({
+      kind: "if",
+      value: argument.stringValue(),
+      type: argument.type,
+      hint: "If string is empty, return false; otherwise true.",
+    });
     if (argument.stringValue().length === 0) {
       return Value.false;
     }
   } else if (argument instanceof BigIntValue) {
-    // If argument is 0ℤ, return false; otherwise return true.
+    op.log({
+      kind: "if",
+      value: String(R(argument)),
+      type: argument.type,
+      hint: "If BigInt is 0ℤ, return false; otherwise true.",
+    });
     if (R(argument) === 0n) {
       return Value.false;
     }
+  } else if (argument instanceof SymbolValue) {
+    op.log({ kind: "return", value: "true", type: argument.type, hint: "Symbol always converts to true." });
+    return Value.true;
+  } else if (argument instanceof ObjectValue) {
+    op.log({ kind: "return", value: "true", type: argument.type, hint: "Object always converts to true." });
+    return Value.true;
   }
   return Value.true;
 }
 
 /** https://tc39.es/ecma262/#sec-tonumeric */
 export function* ToNumeric(value: Value): ValueEvaluator<NumberValue | BigIntValue> {
+  const op = OperationHandle.begin(value.trace, "ToNumeric", value);
+
   // 1. Let primValue be ? ToPrimitive(value, number).
-  const primValue = Q(yield* ToPrimitive(value, 'number'));
+  op.log({ kind: "call", hint: 'Call ToPrimitive with hint "number".' });
+  const primValue = Q(yield* ToPrimitive(value, "number"));
   // 2. If Type(primValue) is BigInt, return primValue.
   if (primValue instanceof BigIntValue) {
+    op.log({ kind: "return", hint: "Result is BigInt, return as-is." }, primValue);
     return primValue;
   }
   // 3. Return ? ToNumber(primValue).
-  return Q(yield* ToNumber(primValue));
+  op.log({ kind: "call", hint: "Result is not BigInt, call ToNumber." });
+  const result = Q(yield* ToNumber(primValue));
+  op.log({ kind: "return", hint: `Step 3: ToNumber returned ${R(result)}.` }, result);
+  return result;
 }
 
 /** https://tc39.es/ecma262/#sec-tonumber */
 export function* ToNumber(argument: Value): ValueEvaluator<NumberValue> {
-  if (argument instanceof UndefinedValue) {
-    // Return NaN.
-    return F(NaN);
-  } else if (argument instanceof NullValue) {
-    // Return +0𝔽.
-    return F(+0);
-  } else if (argument instanceof BooleanValue) {
-    // If argument is true, return 1𝔽.
-    if (argument === Value.true) {
-      return F(1);
-    }
-    // If argument is false, return +0𝔽.
-    return F(+0);
-  } else if (argument instanceof NumberValue) {
-    // Return argument (no conversion).
+  const op = OperationHandle.begin(argument.trace, "ToNumber", argument);
+
+  if (argument instanceof NumberValue) {
+    op.log({ kind: "return", hint: "Step 1: argument is a Number — return argument as-is." }, argument);
     return argument;
-  } else if (argument instanceof JSStringValue) {
-    return MV_StringNumericLiteral(argument.stringValue());
-  } else if (argument instanceof BigIntValue) {
-    // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotMixBigInts');
-  } else if (argument instanceof SymbolValue) {
-    // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertSymbol', 'number');
-  } else if (argument instanceof ObjectValue) {
-    // 1. Let primValue be ? ToPrimitive(argument, number).
-    const primValue = Q(yield* ToPrimitive(argument, 'number'));
-    // 2. Return ? ToNumber(primValue).
-    return Q(yield* ToNumber(primValue));
+  } else {
+    op.log({ kind: "if", hint: "Step 1: argument is not a Number — continue." });
   }
-  throw new OutOfRange('ToNumber', { argument });
+
+  if (argument instanceof BigIntValue) {
+    op.log({ kind: "throw", hint: "Step 2: argument is a BigInt — throw TypeError." });
+    return surroundingAgent.Throw("TypeError", "CannotMixBigInts");
+  } else if (argument instanceof SymbolValue) {
+    op.log({ kind: "throw", hint: "Step 2: argument is a Symbol — throw TypeError." });
+    return surroundingAgent.Throw("TypeError", "CannotConvertSymbol", "number");
+  } else {
+    op.log({ kind: "if", hint: "Step 2: argument is not a Symbol or BigInt — continue." });
+  }
+
+  if (argument instanceof UndefinedValue) {
+    const nanResult = F(NaN);
+    nanResult.trace = argument.trace;
+    op.log({ kind: "return", hint: "Step 3: argument is undefined — return NaN." }, nanResult);
+    return nanResult;
+  } else {
+    op.log({ kind: "if", hint: "Step 3: argument is not undefined — continue." });
+  }
+
+  if (argument instanceof NullValue) {
+    const result = F(+0);
+    result.trace = argument.trace;
+    op.log({ kind: "return", hint: "Step 4: argument is null — return +0𝔽." }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: "Step 4: argument is not null — continue." });
+  }
+
+  if (argument instanceof BooleanValue) {
+    const boolValue = argument === Value.true ? 1 : 0;
+    const result = F(boolValue);
+    result.trace = argument.trace;
+    if (argument === Value.true) {
+      op.log({ kind: "return", hint: "Step 5: argument is true — return 1𝔽." }, result);
+    } else {
+      op.log({ kind: "return", hint: "Step 4: argument is false — return +0𝔽." }, result);
+    }
+    return result;
+  } else {
+    op.log({ kind: "if", hint: "Step 4: argument is not false — continue." });
+    op.log({ kind: "if", hint: "Step 5: argument is not true — continue." });
+  }
+
+  if (argument instanceof JSStringValue) {
+    const strVal = argument.stringValue();
+    op.log({
+      kind: "call",
+      hint: `Step 6: argument is a String — call StringToNumber("${strVal}").`,
+    });
+    const result = MV_StringNumericLiteral(strVal, argument);
+    op.log({ kind: "return", hint: `Step 6: StringToNumber("${strVal}") = ${R(result)}.` }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: "Step 6: argument is not a String — continue." });
+  }
+
+  if (argument instanceof ObjectValue) {
+    op.log({ kind: "assert", hint: "Step 7: Assert — argument is an Object." });
+    op.log({ kind: "call", hint: 'Step 8: Let primValue be ? ToPrimitive(argument, "number").' });
+    const primValue = Q(yield* ToPrimitive(argument, "number"));
+    Assert(!(primValue instanceof ObjectValue));
+    op.log({ kind: "assert", hint: `Step 9: Assert — primValue is not an Object (type: ${primValue.type}).` });
+    primValue.trace = argument.trace;
+    op.log({ kind: "call", hint: "Step 10: Return ? ToNumber(primValue)." });
+    const finalResult = Q(yield* ToNumber(primValue));
+    op.log({ kind: "return", hint: `Step 10: ToNumber(primValue) = ${R(finalResult)}.` }, finalResult);
+    return finalResult;
+  }
+
+  throw new OutOfRange("ToNumber", { argument });
 }
 
 const mod = (n: number, m: number) => {
@@ -196,15 +331,20 @@ const mod = (n: number, m: number) => {
 
 /** https://tc39.es/ecma262/#sec-tointegerorinfinity */
 export function* ToIntegerOrInfinity(argument: Value): PlainEvaluator<number> {
+  const op = OperationHandle.begin(argument.trace, "ToIntegerOrInfinity", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = Q(yield* ToNumber(argument));
   // 2. If number is NaN, +0𝔽, or -0𝔽, return 0.
   if (number.isNaN() || R(number) === 0) {
+    op.log({ kind: "return", hint: "Number is NaN or ±0, return 0." });
     return +0;
   }
   // 3. If number is +∞𝔽, return +∞.
   // 4. If number is -∞𝔽, return -∞.
   if (!number.isFinite()) {
+    op.log({ kind: "return", hint: `Number is ${R(number) > 0 ? "+" : "-"}∞, return as-is.` });
     return R(number);
   }
   // 4. Let integer be floor(abs(ℝ(number))).
@@ -214,185 +354,251 @@ export function* ToIntegerOrInfinity(argument: Value): PlainEvaluator<number> {
     integer = -integer;
   }
   // 6. Return integer.
+  op.log({ kind: "return", hint: `Convert to integer: ${integer}.` });
   return integer;
 }
 
 /** https://tc39.es/ecma262/#sec-toint32 */
 export function* ToInt32(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToInt32", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int32bit be int modulo 2^32.
   const int32bit = mod(int, 2 ** 32);
   // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-  if (int32bit >= (2 ** 31)) {
-    return F(int32bit - (2 ** 32));
+  if (int32bit >= 2 ** 31) {
+    const result = int32bit - 2 ** 32;
+    op.log({ kind: "return", hint: `Convert to signed int32: ${result}.` });
+    return F(result);
   }
+  op.log({ kind: "return", hint: `Convert to int32: ${int32bit}.` });
   return F(int32bit);
 }
 
 /** https://tc39.es/ecma262/#sec-touint32 */
 export function* ToUint32(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToUint32", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int32bit be int modulo 2^32.
   const int32bit = mod(int, 2 ** 32);
   // 5. Return 𝔽(int32bit).
+  op.log({ kind: "return", hint: `Convert to uint32: ${int32bit >>> 0}.` });
   return F(int32bit);
 }
 
 /** https://tc39.es/ecma262/#sec-toint16 */
 export function* ToInt16(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToInt16", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int16bit be int modulo 2^16.
   const int16bit = mod(int, 2 ** 16);
   // 5. If int16bit ≥ 2^31, return 𝔽(int16bit - 2^32); otherwise return 𝔽(int16bit).
-  if (int16bit >= (2 ** 15)) {
-    return F(int16bit - (2 ** 16));
+  if (int16bit >= 2 ** 15) {
+    const result = int16bit - 2 ** 16;
+    op.log({ kind: "return", hint: `Convert to signed int16: ${result}.` });
+    return F(result);
   }
+  op.log({ kind: "return", hint: `Convert to int16: ${int16bit}.` });
   return F(int16bit);
 }
 
 /** https://tc39.es/ecma262/#sec-touint16 */
 export function* ToUint16(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToUint16", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int16bit be int modulo 2^16.
   const int16bit = mod(int, 2 ** 16);
   // 5. Return 𝔽(int16bit).
+  op.log({ kind: "return", hint: `Convert to uint16: ${int16bit & 0xffff}.` });
   return F(int16bit);
 }
 
 /** https://tc39.es/ecma262/#sec-toint8 */
 export function* ToInt8(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToInt8", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int8bit be int modulo 2^8.
   const int8bit = mod(int, 2 ** 8);
   // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-  if (int8bit >= (2 ** 7)) {
-    return F(int8bit - (2 ** 8));
+  if (int8bit >= 2 ** 7) {
+    const result = int8bit - 2 ** 8;
+    op.log({ kind: "return", hint: `Convert to signed int8: ${result}.` });
+    return F(result);
   }
+  op.log({ kind: "return", hint: `Convert to int8: ${int8bit}.` });
   return F(int8bit);
 }
 
 /** https://tc39.es/ecma262/#sec-touint8 */
 export function* ToUint8(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToUint8", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return +0𝔽.
   if (Number.isNaN(number) || number === 0 || !Number.isFinite(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, ±0, or infinite, return +0." });
     return F(+0);
   }
   // 3. Let int be truncate(ℝ(number)).
   const int = Math.trunc(number);
+  op.log({ kind: "operation", hint: `After truncation: ${int}` });
   // 4. Let int8bit be int modulo 2^8.
   const int8bit = mod(int, 2 ** 8);
   // 5. Return 𝔽(int8bit).
+  op.log({ kind: "return", hint: `Convert to uint8: ${int8bit & 0xff}.` });
   return F(int8bit);
 }
 
 /** https://tc39.es/ecma262/#sec-touint8clamp */
 export function* ToUint8Clamp(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToUint8Clamp", argument);
+
   // 1. Let number be ? ToNumber(argument).
+  op.log({ kind: "operation", hint: "Call ToNumber." });
   const number = R(Q(yield* ToNumber(argument)));
   // 2. If number is NaN, return +0𝔽.
   if (Number.isNaN(number)) {
+    op.log({ kind: "return", hint: "Number is NaN, return +0." });
     return F(+0);
   }
   // 3. If ℝ(number) ≤ 0, return +0𝔽.
   if (number <= 0) {
+    op.log({ kind: "return", hint: "Number ≤ 0, return +0." });
     return F(+0);
   }
   // 4. If ℝ(number) ≥ 255, return 255𝔽.
   if (number >= 255) {
+    op.log({ kind: "return", hint: "Number ≥ 255, return 255." });
     return F(255);
   }
   // 5. Let f be floor(ℝ(number)).
   const f = Math.floor(number);
+  op.log({ kind: "operation", hint: `After floor: ${f}` });
   // 6. If f + 0.5 < ℝ(number), return 𝔽(f + 1).
   if (f + 0.5 < number) {
+    op.log({ kind: "return", hint: `Round up (nearest value > ${f}.5): ${f + 1}.` });
     return F(f + 1);
   }
   // 7. If ℝ(number) < f + 0.5, return 𝔽(f).
   if (number < f + 0.5) {
+    op.log({ kind: "return", hint: `Round down (nearest value < ${f}.5): ${f}.` });
     return F(f);
   }
   // 8. If f is odd, return 𝔽(f + 1).
   if (f % 2 === 1) {
+    op.log({ kind: "return", hint: `Round to even (tie, round up): ${f + 1}.` });
     return F(f + 1);
   }
   // 9. Return 𝔽(f).
+  op.log({ kind: "return", hint: `Round to even (tie, round down): ${f}.` });
   return F(f);
 }
 
 /** https://tc39.es/ecma262/#sec-tobigint */
 export function* ToBigInt(argument: Value): ValueEvaluator<BigIntValue> {
+  const op = OperationHandle.begin(argument.trace, "ToBigInt", argument);
+
   // 1. Let prim be ? ToPrimitive(argument, number).
-  const prim = Q(yield* ToPrimitive(argument, 'number'));
+  op.log({ kind: "operation", hint: 'Call ToPrimitive with hint "number".' });
+  const prim = Q(yield* ToPrimitive(argument, "number"));
   // 2. Return the value that prim corresponds to in Table 12 (#table-tobigint).
   if (prim instanceof UndefinedValue) {
+    op.log({ kind: "throw", hint: "Cannot convert undefined to BigInt." });
     // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertToBigInt', prim);
+    return surroundingAgent.Throw("TypeError", "CannotConvertToBigInt", prim);
   } else if (prim instanceof NullValue) {
+    op.log({ kind: "throw", hint: "Cannot convert null to BigInt." });
     // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertToBigInt', prim);
+    return surroundingAgent.Throw("TypeError", "CannotConvertToBigInt", prim);
   } else if (prim instanceof BooleanValue) {
+    op.log({ kind: "operation", hint: `Convert boolean ${prim === Value.true ? "true" : "false"} to BigInt.` });
     // Return 1ℤ if prim is true and 0ℤ if prim is false.
     if (prim === Value.true) {
       return Z(1n);
     }
     return Z(0n);
   } else if (prim instanceof BigIntValue) {
+    op.log({ kind: "return", hint: "Result is already BigInt, return as-is." });
     // Return prim.
     return prim;
   } else if (prim instanceof NumberValue) {
+    op.log({ kind: "throw", hint: "Cannot convert number to BigInt." });
     // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertToBigInt', prim);
+    return surroundingAgent.Throw("TypeError", "CannotConvertToBigInt", prim);
   } else if (prim instanceof JSStringValue) {
+    op.log({ kind: "operation", hint: `Parse string "${prim.stringValue()}" as BigInt.` });
     // 1. Let n be StringToBigInt(prim).
     const n = StringToBigInt(prim);
     // 2. If n is NaN, throw a SyntaxError exception.
     if (n === undefined) {
-      return surroundingAgent.Throw('SyntaxError', 'CannotConvertToBigInt', prim);
+      op.log({ kind: "throw", hint: "Invalid BigInt string syntax." });
+      return surroundingAgent.Throw("SyntaxError", "CannotConvertToBigInt", prim);
     }
     // 3. Return n.
+    op.log({ kind: "return", hint: `String parsed as BigInt ${n.value}.` });
     return n;
   } else if (prim instanceof SymbolValue) {
+    op.log({ kind: "throw", hint: "Cannot convert symbol to BigInt." });
     // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertSymbol', 'bigint');
+    return surroundingAgent.Throw("TypeError", "CannotConvertSymbol", "bigint");
   }
-  throw new OutOfRange('ToBigInt', argument);
+  throw new OutOfRange("ToBigInt", argument);
 }
 
 /** https://tc39.es/ecma262/#sec-stringtobigint */
@@ -406,159 +612,264 @@ export function StringToBigInt(argument: JSStringValue) {
 
 /** https://tc39.es/ecma262/#sec-tobigint64 */
 export function* ToBigInt64(argument: Value): ValueEvaluator<BigIntValue> {
+  const op = OperationHandle.begin(argument.trace, "ToBigInt64", argument);
+
   // 1. Let n be ? ToBigInt(argument).
-  const n = Q(yield* (ToBigInt(argument)));
+  op.log({ kind: "operation", hint: "Call ToBigInt." });
+  const n = Q(yield* ToBigInt(argument));
   // 2. Let int64bit be ℝ(n) modulo 2^64.
-  const int64bit = R(n) % (2n ** 64n);
+  const int64bit = R(n) % 2n ** 64n;
+  op.log({ kind: "operation", hint: `After modulo 2^64: ${int64bit}` });
   // 3. If int64bit ≥ 2^63, return ℤ(int64bit - 2^64); otherwise return ℤ(int64bit).
   if (int64bit >= 2n ** 63n) {
-    return Z(int64bit - (2n ** 64n));
+    const result = int64bit - 2n ** 64n;
+    op.log({ kind: "return", hint: `Convert to signed int64: ${result}.` });
+    return Z(result);
   }
+  op.log({ kind: "return", hint: `Convert to int64: ${int64bit}.` });
   return Z(int64bit);
 }
 
 /** https://tc39.es/ecma262/#sec-tobiguint64 */
 export function* ToBigUint64(argument: Value): ValueEvaluator<BigIntValue> {
+  const op = OperationHandle.begin(argument.trace, "ToBigUint64", argument);
+
   // 1. Let n be ? ToBigInt(argument).
-  const n = Q(yield* (ToBigInt(argument)));
+  op.log({ kind: "operation", hint: "Call ToBigInt." });
+  const n = Q(yield* ToBigInt(argument));
   // 2. Let int64bit be ℝ(n) modulo 2^64.
-  const int64bit = R(n) % (2n ** 64n);
+  const int64bit = R(n) % 2n ** 64n;
+  op.log({ kind: "operation", hint: `After modulo 2^64: ${int64bit}` });
   // 3. Return ℤ(int64bit).
+  op.log({ kind: "return", hint: `Convert to uint64: ${int64bit}.` });
   return Z(int64bit);
 }
 
 /** https://tc39.es/ecma262/#sec-tostring */
 export function* ToString(argument: Value): ValueEvaluator<JSStringValue> {
+  const op = OperationHandle.begin(argument.trace, "ToString", argument);
+
   if (argument instanceof UndefinedValue) {
-    // Return "undefined".
-    return Value('undefined');
-  } else if (argument instanceof NullValue) {
-    // Return "null".
-    return Value('null');
-  } else if (argument instanceof BooleanValue) {
-    // If argument is true, return "true".
-    // If argument is false, return "false".
-    return Value(argument === Value.true ? 'true' : 'false');
-  } else if (argument instanceof NumberValue) {
-    // Return ! Number::toString(argument).
-    return X(NumberValue.toString(argument, 10));
-  } else if (argument instanceof JSStringValue) {
-    // Return argument.
-    return argument;
-  } else if (argument instanceof SymbolValue) {
-    // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertSymbol', 'string');
-  } else if (argument instanceof BigIntValue) {
-    // Return ! BigInt::toString(argument).
-    return X(BigIntValue.toString(argument, 10));
-  } else if (argument instanceof ObjectValue) {
-    // 1. Let primValue be ? ToPrimitive(argument, string).
-    const primValue = Q(yield* ToPrimitive(argument, 'string'));
-    // 2. Return ? ToString(primValue).
-    return Q(yield* ToString(primValue));
+    const result = Value("undefined");
+    op.log({ kind: "return", hint: 'If argument is undefined, return "undefined".' }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: 'If argument is undefined, return "undefined".' });
   }
-  throw new OutOfRange('ToString', { argument });
+
+  if (argument instanceof NullValue) {
+    const result = Value("null");
+    op.log({ kind: "return", hint: 'If argument is null, return "null".' }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: 'If argument is null, return "null".' });
+  }
+
+  if (argument instanceof BooleanValue) {
+    const boolStr = argument === Value.true ? "true" : "false";
+    const result = Value(boolStr);
+    op.log({ kind: "return", hint: `If argument is ${boolStr}, return "${boolStr}".` }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: 'If argument is boolean, return "true" or "false".' });
+  }
+
+  if (argument instanceof NumberValue) {
+    op.log({ kind: "operation", hint: `Convert number ${R(argument)} to string.` });
+    const result = X(NumberValue.toString(argument, 10));
+    op.log({ kind: "return", hint: `Number::toString(${R(argument)}) = "${result.stringValue()}".` }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: "If argument is number, convert using Number::toString." });
+  }
+
+  if (argument instanceof JSStringValue) {
+    op.log({ kind: "return", hint: "Argument is already a string, return as-is." }, argument);
+    return argument;
+  } else {
+    op.log({ kind: "if", hint: "If argument is string, return as-is." });
+  }
+
+  if (argument instanceof SymbolValue) {
+    op.log({ kind: "throw", hint: "Cannot convert Symbol to String - throw TypeError." });
+    return surroundingAgent.Throw("TypeError", "CannotConvertSymbol", "string");
+  } else {
+    op.log({ kind: "if", hint: "If argument is Symbol, throw TypeError." });
+  }
+
+  if (argument instanceof BigIntValue) {
+    op.log({ kind: "operation", hint: `Convert BigInt ${R(argument)} to string.` });
+    const result = X(BigIntValue.toString(argument, 10));
+    op.log({ kind: "return", hint: `BigInt::toString(${R(argument)}) = "${result.stringValue()}".` }, result);
+    return result;
+  } else {
+    op.log({ kind: "if", hint: "If argument is BigInt, convert using BigInt::toString." });
+  }
+
+  if (argument instanceof ObjectValue) {
+    op.log({ kind: "call", hint: 'Step 2g-i: Let primValue be ? ToPrimitive(argument, "string").' });
+    const primValue = Q(yield* ToPrimitive(argument, "string"));
+    op.log({ kind: "call", hint: "Step 2g-ii: Return ? ToString(primValue)." });
+    const result = Q(yield* ToString(primValue));
+    op.log({ kind: "return", hint: `ToString returned "${result.stringValue()}".` }, result);
+    return result;
+  }
+
+  throw new OutOfRange("ToString", { argument });
 }
 
 /** https://tc39.es/ecma262/#sec-toobject */
 export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
+  const op = OperationHandle.begin(argument.trace, "ToObject", argument);
   if (argument === Value.undefined) {
-    // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertToObject', 'undefined');
+    op.log({ kind: "throw", hint: "Step 1: argument is undefined — throw TypeError." });
+    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "undefined");
   } else if (argument === Value.null) {
-    // Throw a TypeError exception.
-    return surroundingAgent.Throw('TypeError', 'CannotConvertToObject', 'null');
+    op.log({ kind: "throw", hint: "Step 2: argument is null — throw TypeError." });
+    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "null");
   } else if (argument instanceof BooleanValue) {
-    // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
-    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic('%Boolean.prototype%'), ['BooleanData']) as Mutable<BooleanObject>;
+    op.log({
+      kind: "return",
+      hint: `Step 3: argument is Boolean — return new Boolean object wrapping ${argument === Value.true ? "true" : "false"}.`,
+    });
+    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Boolean.prototype%"), [
+      "BooleanData",
+    ]) as Mutable<BooleanObject>;
     obj.BooleanData = argument;
     return obj;
   } else if (argument instanceof NumberValue) {
-    // Return a new Number object whose [[NumberData]] internal slot is set to argument.
-    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic('%Number.prototype%'), ['NumberData']) as Mutable<NumberObject>;
+    op.log({ kind: "return", hint: `Step 4: argument is Number — return new Number object wrapping ${R(argument)}.` });
+    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Number.prototype%"), [
+      "NumberData",
+    ]) as Mutable<NumberObject>;
     obj.NumberData = argument;
     return obj;
   } else if (argument instanceof JSStringValue) {
-    // Return a new String object whose [[StringData]] internal slot is set to argument.
-    return StringCreate(argument, surroundingAgent.intrinsic('%String.prototype%'));
+    op.log({
+      kind: "return",
+      hint: `Step 5: argument is String — return new String object wrapping "${argument.stringValue()}".`,
+    });
+    return StringCreate(argument, surroundingAgent.intrinsic("%String.prototype%"));
   } else if (argument instanceof SymbolValue) {
-    // Return a new Symbol object whose [[SymbolData]] internal slot is set to argument.
-    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic('%Symbol.prototype%'), ['SymbolData']) as Mutable<SymbolObject>;
+    op.log({ kind: "return", hint: "Step 6: argument is Symbol — return new Symbol object." });
+    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Symbol.prototype%"), [
+      "SymbolData",
+    ]) as Mutable<SymbolObject>;
     obj.SymbolData = argument;
     return obj;
   } else if (argument instanceof BigIntValue) {
-    // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
-    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic('%BigInt.prototype%'), ['BigIntData']) as Mutable<BigIntObject>;
+    op.log({ kind: "return", hint: `Step 7: argument is BigInt — return new BigInt object wrapping ${R(argument)}.` });
+    const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%BigInt.prototype%"), [
+      "BigIntData",
+    ]) as Mutable<BigIntObject>;
     obj.BigIntData = argument;
     return obj;
   }
   Assert(argument instanceof ObjectValue);
+  op.log({ kind: "return", hint: "Step 8: argument is already an Object — return as-is." });
   return argument;
 }
 
 /** https://tc39.es/ecma262/#sec-topropertykey */
 export function* ToPropertyKey(argument: Value): ValueEvaluator<PropertyKeyValue> {
+  const op = OperationHandle.begin(argument.trace, "ToPropertyKey", argument);
+
   // 1. Let key be ? ToPrimitive(argument, string).
-  const key = Q(yield* ToPrimitive(argument, 'string'));
+  op.log({ kind: "operation", hint: 'Call ToPrimitive with hint "string".' });
+  const key = Q(yield* ToPrimitive(argument, "string"));
   // 2. If Type(key) is Symbol, then
   if (key instanceof SymbolValue) {
     // a. Return key.
+    op.log({ kind: "return", hint: "Result is Symbol, return as property key." });
     return key;
   }
   // 3. Return ! ToString(key).
+  op.log({ kind: "operation", hint: "Convert to string for property key." });
   return X(ToString(key));
 }
 
 /** https://tc39.es/ecma262/#sec-tolength */
 export function* ToLength(argument: Value): ValueEvaluator<NumberValue> {
+  const op = OperationHandle.begin(argument.trace, "ToLength", argument);
+
   // 1. Let len be ? ToIntegerOrInfinity(argument).
+  op.log({ kind: "operation", hint: "Call ToIntegerOrInfinity." });
   const len = Q(yield* ToIntegerOrInfinity(argument));
   // 2. If len ≤ 0, return +0𝔽.
   if (len <= 0) {
+    op.log({ kind: "return", hint: "Integer is ≤ 0, return +0." });
     return F(+0);
   }
   // 3. Return 𝔽(min(len, 253 - 1)).
-  return F(Math.min(len, (2 ** 53) - 1));
+  const maxLength = 2 ** 53 - 1;
+  const result = Math.min(len, maxLength);
+  op.log({ kind: "return", hint: `Clamp to valid length: ${result}.` });
+  return F(result);
 }
 
 /** https://tc39.es/ecma262/#sec-canonicalnumericindexstring */
 export function CanonicalNumericIndexString(argument: Value) {
   // 1. Assert: Type(argument) is String.
   Assert(argument instanceof JSStringValue);
+  const op = OperationHandle.begin(argument.trace, "CanonicalNumericIndexString", argument);
+  op.log({
+    kind: "operation",
+    value: argument.stringValue(),
+    type: "string",
+    hint: `Check if "${argument.stringValue()}" is a canonical numeric index.`,
+  });
+
   // 2. If argument is "-0", return -0𝔽.
-  if (argument.stringValue() === '-0') {
+  if (argument.stringValue() === "-0") {
+    op.log({ kind: "return", value: "-0", type: "number", hint: 'String is "-0", return -0.' });
     return F(-0);
   }
   // 3. Let n be ! ToNumber(argument).
   const n = X(ToNumber(argument));
   // 4. If SameValue(! ToString(n), argument) is false, return undefined.
-  if (SameValue(X(ToString(n)), argument) === Value.false) {
+  const strRep = X(ToString(n));
+  if (SameValue(strRep, argument) === Value.false) {
+    op.log({
+      kind: "return",
+      value: "undefined",
+      type: "undefined",
+      hint: "Number-to-string round-trip failed, not a canonical index.",
+    });
     return Value.undefined;
   }
-  // 4. Return n.
+  // 5. Return n.
+  op.log({ kind: "return", value: String(R(n)), type: "number", hint: `Valid canonical numeric index: ${R(n)}.` });
   return n;
 }
 
 /** https://tc39.es/ecma262/#sec-toindex */
 export function* ToIndex(value: Value) {
+  const op = OperationHandle.begin(value.trace, "ToIndex", value);
+
   // 1. If value is undefined, then
   if (value instanceof UndefinedValue) {
     // a. Return 0.
+    op.log({ kind: "return", hint: "Value is undefined, return 0 as index." });
     return 0;
   } else {
     // a. Let integerIndex be 𝔽(? ToIntegerOrInfinity(value)).
+    op.log({ kind: "operation", hint: "Call ToIntegerOrInfinity." });
     const integerIndex = F(Q(yield* ToIntegerOrInfinity(value)));
     // b. If integerIndex < +0𝔽, throw a RangeError exception.
     if (R(integerIndex) < 0) {
-      return surroundingAgent.Throw('RangeError', 'NegativeIndex', 'Index');
+      op.log({ kind: "throw", hint: "Index is negative." });
+      return surroundingAgent.Throw("RangeError", "NegativeIndex", "Index");
     }
     // c. Let index be ! ToLength(integerIndex).
+    op.log({ kind: "operation", hint: "Clamp index to valid length." });
     const index = X(ToLength(integerIndex));
     // d. If ! SameValue(integerIndex, index) is false, throw a RangeError exception.
     if (X(SameValue(integerIndex, index)) === Value.false) {
-      return surroundingAgent.Throw('RangeError', 'OutOfRange', 'Index');
+      op.log({ kind: "throw", hint: "Index exceeds maximum length." });
+      return surroundingAgent.Throw("RangeError", "OutOfRange", "Index");
     }
     // e. Return ℝ(index).
+    op.log({ kind: "return", hint: `Valid index: ${R(index)}.` });
     return R(index);
   }
 }

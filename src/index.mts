@@ -19,8 +19,9 @@ export type { ParseNode } from './parser/ParseNode.mts';
 export { createTest262Intrinsics, boostTest262Harness } from './host-defined/test262-intrinsics.mts';
 export { performDevtoolsEval } from './host-defined/debugger-eval.mts';
 export {
-  getHostDefinedErrorStack, skipDebugger, getCurrentStack, JSStringMap, JSStringSet, CallSite, CallFrame, type Mutable, PropertyKeyMap, kInternal,
+  getHostDefinedErrorStack, skipDebugger, getCurrentStack, JSStringMap, JSStringSet, CallSite, CallFrame, type Mutable, PropertyKeyMap, kInternal, callGenerator, callToNumber,
 } from './helpers.mts';
+export { TraceRecord, type TraceEntry, type TraceNode, type TraceStep, type TraceStepKind } from './trace.mts';
 
 export { isMapObject, type MapObject } from './intrinsics/Map.mts';
 export { isSetObject, type SetObject } from './intrinsics/Set.mts';

@@ -59,7 +59,11 @@ class CompletionImpl<const T> {
   readonly Target!: JSStringValue | undefined;
 
   constructor(init: CompletionInit<T>) {
-    if (new.target === CompletionImpl) {
+    // Use prototype.Type check instead of new.target === CompletionImpl to handle
+    // proxy-wrapped callable classes (the @callable decorator returns a Proxy, so
+    // new.target is the original class, not the proxy — making identity checks unreliable)
+    const targetProtoType = (new.target.prototype as { Type?: string }).Type;
+    if (targetProtoType === undefined) {
       switch (init.Type) {
         case 'normal':
           return createNormalCompletion(init);
@@ -322,9 +326,18 @@ export type Q<T> =
  * https://tc39.es/ecma262/#sec-returnifabrupt
  * https://tc39.es/ecma262/#sec-returnifabrupt-shorthands ? OperationName()
  */
-export function Q<const T>(_completion: T): Q<T> {
+let Q_impl: <const T>(_completion: T) => Q<T> = function Q<const T>(_completion: T): Q<T> {
   /* node:coverage ignore next */
   throw new TypeError('Q requires build');
+};
+
+let X_impl: <const T>(_completion: T | Evaluator<T>) => Q<T> = function X<const T>(_completion: T | Evaluator<T>): Q<T> {
+  /* node:coverage ignore next */
+  throw new TypeError('X() requires build');
+};
+
+export function Q<const T>(_completion: T): Q<T> {
+  return Q_impl(_completion);
 }
 
 function Q_runtime<const T>(completion: T): Q<T> {
@@ -341,8 +354,17 @@ function Q_runtime<const T>(completion: T): Q<T> {
 
 /** https://tc39.es/ecma262/#sec-returnifabrupt-shorthands ! OperationName() */
 export function X<const T>(_completion: T | Evaluator<T>): Q<T> {
-  /* node:coverage ignore next */
-  throw new TypeError('X() requires build');
+  return X_impl(_completion);
+}
+
+/**
+ * Install runtime implementations of Q and X globally.
+ * Call this in test setup files or when running from source without a build step.
+ * The built bundle replaces Q/X at compile time, so this is only needed in dev/test mode.
+ */
+export function installRuntimeQX(): void {
+  Q_impl = Q_runtime;
+  X_impl = unwrapCompletion as typeof X_impl;
 }
 
 export function unwrapCompletion<const T>(completion: T | Evaluator<T>): Q<T> {
@@ -388,8 +410,12 @@ export function IfAbruptRejectPromise<T>(_value: T, _capability: PromiseCapabili
 export function evalQ<T>(callback: (q: typeof Q, x: typeof X) => Promise<T>): Promise<NormalCompletion<T> | ThrowCompletion>
 export function evalQ<T>(callback: (q: typeof Q, x: typeof X) => T): NormalCompletion<T> | ThrowCompletion
 export function evalQ<T>(callback: (q: typeof Q, x: typeof X) => T | Promise<T>): Promise<NormalCompletion<T> | ThrowCompletion> | NormalCompletion<T> | ThrowCompletion {
+  const originalQImpl = Q_impl;
+  const originalXImpl = X_impl;
+  Q_impl = Q_runtime;
+  X_impl = unwrapCompletion as typeof X_impl;
   try {
-    const result = callback(Q_runtime, unwrapCompletion);
+    const result = callback(Q as any, X as any);
     if (result instanceof Promise) {
       return result.then(EnsureCompletion, (error) => {
         if (error instanceof ThrowCompletion) {
@@ -406,6 +432,9 @@ export function evalQ<T>(callback: (q: typeof Q, x: typeof X) => T | Promise<T>)
     }
     // a real error
     throw error;
+  } finally {
+    Q_impl = originalQImpl;
+    X_impl = originalXImpl;
   }
 }
 

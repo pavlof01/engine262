@@ -629,3 +629,29 @@ export function unreachable(_: never): never {
   throw new Error('Unreachable');
 }
 export function __ts_cast__<T>(_value: unknown): asserts _value is T { }
+
+/**
+ * Generic helper to execute any generator function synchronously.
+ * Iterates through the generator until completion and returns the final value.
+ */
+export function callGenerator(generator: Generator | unknown) {
+  if (
+    generator === null ||
+    typeof generator !== 'object' ||
+    typeof (generator as Generator).next !== 'function'
+  ) {
+    return generator;
+  }
+  let result = (generator as Generator).next();
+  while (!result.done) {
+    result = (generator as Generator).next();
+  }
+  return result.value;
+}
+
+/**
+ * Convenience wrapper for ToNumber abstract operation.
+ */
+export function callToNumber(toNumberGenerator: Generator) {
+  return callGenerator(toNumberGenerator);
+}
