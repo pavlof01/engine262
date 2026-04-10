@@ -396,8 +396,7 @@ export interface Throw {
   | 'yield cannot be used inside parameters of arrow functions'
   ): ThrowCompletion;
   (m:
-'"roundingIncrement" ($1) is out of range'
-  | '$1 can only be used with v flag'
+'$1 can only be used with v flag'
   | '$1 cannot be inverted'
   | '$1 cannot be invoked without new'
   | '$1 cannot be used as a WeakMap key'
@@ -412,6 +411,7 @@ export interface Throw {
   | '$1 is not a RegExp object'
   | '$1 is not a TemporalTimeLike object'
   | '$1 is not a constructor'
+  | '$1 is not a finite number'
   | '$1 is not a function'
   | '$1 is not a number'
   | '$1 is not a partial Temporal object'
@@ -422,7 +422,7 @@ export interface Throw {
   | '$1 is not a valid modifier'
   | '$1 is not a valid month code'
   | '$1 is not a valid property name'
-  | '$1 is not an integral number'
+  | '$1 is not an integer'
   | '$1 is not an object'
   | '$1 is not an object or a symbol'
   | '$1 is not defined'
@@ -430,6 +430,8 @@ export interface Throw {
   | '$1 is not object or null'
   | '$1 is not the [[ArrayBufferDetachKey]] of the given ArrayBuffer'
   | '$1 is out of range'
+  | '$1 is too large'
+  | '$1 is too small'
   | "'defineProperty' on proxy: trap returned truthy for adding property $1 that is incompatible with the existing property in the proxy target"
   | "'defineProperty' on proxy: trap returned truthy for adding property $1 to the non-extensible proxy target"
   | "'defineProperty' on proxy: trap returned truthy for defining non-configurable property $1 which cannot be non-writable, unless there exists a corresponding non-configurable, non-writable own property of the target object"

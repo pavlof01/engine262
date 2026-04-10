@@ -235,6 +235,9 @@ function parseDate(dateTimeString: JSStringValue): NumberValue {
   const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(monthStr);
   const day = Number(dayStr);
   const year = Number(groups.year);
+  if (Object.is(year, -0)) {
+    return F(NaN);
+  }
   let hour = 0;
   let minute = 0;
   let second = 0;

@@ -6,7 +6,7 @@ import { type ISODateRecord, type TemporalPlainDateObject, isTemporalPlainDateOb
 import { isTemporalPlainDateTimeObject } from '../../intrinsics/Temporal/PlainDateTime.mts';
 import { type TemporalZonedDateTimeObject, isTemporalZonedDateTimeObject } from '../../intrinsics/Temporal/ZonedDateTime.mts';
 import {
-  abs, floorDiv, modulo, truncate,
+  abs, floorDiv, modulo,
 } from '../math.mts';
 import {
   GetRoundingIncrementOption, GetRoundingModeOption, GetUTCEpochNanoseconds, ToZeroPaddedDecimalString, UnsignedRoundingMode, type TimeZoneIdentifier,
@@ -17,7 +17,7 @@ import {
 } from './calendar.mts';
 import { ToTemporalTimeZoneIdentifier } from './time-zone.mts';
 import {
-  ToPrimitive, ToNumber, Throw, CreateISODateRecord, CreateTemporalDate, CreateTemporalZonedDateTime, InterpretISODateTimeOffset, InterpretTemporalDateTimeFields, nsPerDay, type ISODateTimeMatchBehaviour, type ISODateTimeOffsetBehaviour,
+  ToPrimitive, Throw, CreateISODateRecord, CreateTemporalDate, CreateTemporalZonedDateTime, InterpretISODateTimeOffset, InterpretTemporalDateTimeFields, nsPerDay, type ISODateTimeMatchBehaviour, type ISODateTimeOffsetBehaviour,
   Value, ObjectValue, JSStringValue, NumberValue, UndefinedValue, Q, Get, ToString, type PlainCompletion, type PlainEvaluator, Assert, type PropertyKeyValue, X,
   msPerDay,
 } from '#self';
