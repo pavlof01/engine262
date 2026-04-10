@@ -3,6 +3,7 @@
 import type { TemporalDurationObject } from '../intrinsics/Temporal/Duration.mts';
 import { OutOfRange } from '../utils/language.mts';
 import { Decimal } from '../host-defined/decimal.mts';
+import { SnapToInteger } from '../abstract-ops/temporal/addition.mts';
 import {
   Assert,
   CreateTemporalDuration,
@@ -17,7 +18,6 @@ import {
   Q,
   Throw,
   ThrowCompletion,
-  ToIntegerWithTruncation,
   ToPrimitive,
   Value,
   X,
@@ -291,28 +291,28 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   const [hours, fHours = ''] = hoursNode.split(_seperator);
   const [minutes, fMinutes = ''] = minutesNode.split(_seperator);
   const [seconds, fSeconds = ''] = secondsNode.split(_seperator);
-  let yearsMV = Q(yield* ToIntegerWithTruncation(Value(years)));
-  let monthsMV = Q(yield* ToIntegerWithTruncation(Value(months)));
-  let weeksMV = Q(yield* ToIntegerWithTruncation(Value(weeks)));
-  let daysMV = Q(yield* ToIntegerWithTruncation(Value(days)));
-  let hoursMV = Q(yield* ToIntegerWithTruncation(Value(hours)));
+  let yearsMV = Q(yield* SnapToInteger(Value(years), 'truncate-strict'));
+  let monthsMV = Q(yield* SnapToInteger(Value(months), 'truncate-strict'));
+  let weeksMV = Q(yield* SnapToInteger(Value(weeks), 'truncate-strict'));
+  let daysMV = Q(yield* SnapToInteger(Value(days), 'truncate-strict'));
+  let hoursMV = Q(yield* SnapToInteger(Value(hours), 'truncate-strict'));
   let minutesMV: MathematicalValue;
   if (fHours) {
     Assert(!minutes && !fMinutes && !seconds && !fSeconds);
     const fHoursDigits = fHours.substring(1);
     const fHoursScale = fHoursDigits.length;
-    minutesMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fHoursDigits)))).divide(10 ** fHoursScale).multiply(60);
+    minutesMV = Decimal(Q(yield* SnapToInteger(Value(fHoursDigits), 'truncate-strict'))).divide(10 ** fHoursScale).multiply(60);
   } else {
-    minutesMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(minutes))));
+    minutesMV = Decimal(Q(yield* SnapToInteger(Value(minutes), 'truncate-strict')));
   }
   let secondsMV: MathematicalValue;
   if (fMinutes) {
     Assert(!seconds && !fSeconds);
     const fMinutesDigits = fMinutes.substring(1);
     const fMinutesScale = fMinutesDigits.length;
-    secondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fMinutesDigits)))).divide(10 ** fMinutesScale).multiply(60);
+    secondsMV = Decimal(Q(yield* SnapToInteger(Value(fMinutesDigits), 'truncate-strict'))).divide(10 ** fMinutesScale).multiply(60);
   } else if (seconds) {
-    secondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(seconds))));
+    secondsMV = Decimal(Q(yield* SnapToInteger(Value(seconds), 'truncate-strict')));
   } else {
     secondsMV = minutesMV.remainder(1).multiply(60);
   }
@@ -320,7 +320,7 @@ export function* ParseTemporalDurationString(isoString: string): ValueEvaluator<
   if (fSeconds) {
     const fSecondDigits = fSeconds.substring(1);
     const fSecondsScale = fSecondDigits.length;
-    millisecondsMV = Decimal(Q(yield* ToIntegerWithTruncation(Value(fSecondDigits)))).divide(10 ** fSecondsScale).multiply(1000);
+    millisecondsMV = Decimal(Q(yield* SnapToInteger(Value(fSecondDigits), 'truncate-strict'))).divide(10 ** fSecondsScale).multiply(1000);
   } else {
     millisecondsMV = secondsMV.remainder(1).multiply(1000);
   }

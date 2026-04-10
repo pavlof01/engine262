@@ -1,4 +1,5 @@
 import { bootstrapConstructor } from '../bootstrap.mts';
+import { SnapToInteger } from '../../abstract-ops/temporal/addition.mts';
 import { bootstrapTemporalPlainDatePrototype } from './PlainDatePrototype.mts';
 import {
   type Realm, Value, UndefinedValue, Q, JSStringValue, type FunctionCallContext, type Arguments, F, type OrdinaryObject, type ValueEvaluator,
@@ -10,7 +11,6 @@ import {
   ToTemporalDate,
   type CalendarType,
   CanonicalizeCalendar,
-  ToIntegerWithTruncation,
   type Integer,
 } from '#self';
 
@@ -36,9 +36,9 @@ function* PlainDateConstructor([isoYear = Value.undefined, isoMonth = Value.unde
   if (NewTarget instanceof UndefinedValue) {
     return Throw.TypeError('Temporal.PlainDate constructor cannot be called without new');
   }
-  const y = Q(yield* ToIntegerWithTruncation(isoYear));
-  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
-  const d = Q(yield* ToIntegerWithTruncation(isoDay));
+  const y = Q(yield* SnapToInteger(isoYear, 'truncate-strict'));
+  const m = Q(yield* SnapToInteger(isoMonth, 'truncate-strict'));
+  const d = Q(yield* SnapToInteger(isoDay, 'truncate-strict'));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }

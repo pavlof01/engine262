@@ -746,24 +746,6 @@ export function RoundNumberToIncrementAsIfPositive(
   return rounded.multiply(increment).toBigInt();
 }
 
-/** https://tc39.es/proposal-temporal/#sec-temporal-topositiveintegerwithtruncation */
-export function* ToPositiveIntegerWithTruncation(argument: Value): PlainEvaluator<Integer> {
-  const integer = Q(yield* ToIntegerWithTruncation(argument));
-  if (integer <= 0) {
-    return Throw.RangeError('$1 is out of range', integer);
-  }
-  return integer;
-}
-
-/** https://tc39.es/proposal-temporal/#sec-tointegerwithtruncation */
-export function* ToIntegerWithTruncation(argument: Value): PlainEvaluator<Integer> {
-  const number = Q(yield* ToNumber(argument));
-  if (number.isNaN() || number.isInfinity()) {
-    return Throw.RangeError('$1 is out of range', number);
-  }
-  return BigInt(truncate(R(number)));
-}
-
 /** https://tc39.es/proposal-temporal/#sec-temporal-tooffsetstring */
 export function* ToOffsetString(argument: Value): PlainEvaluator<string> {
   const offset = Q(yield* ToPrimitive(argument, 'string'));

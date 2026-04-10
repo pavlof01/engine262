@@ -11,9 +11,9 @@ import {
   R, type Integer, type IntegralNumber, type NaN, type Num,
 } from '../spec-types.mjs';
 import { __ts_cast__ } from '../../utils/language.mts';
-import { truncateDiv } from '../math.mts';
+import { truncate, truncateDiv } from '../math.mts';
 import { Decimal } from '../../host-defined/decimal.mts';
-import { FormatTimeString, ToIntegerWithTruncation, type EpochNanoseconds } from './temporal.mts';
+import { FormatTimeString, type EpochNanoseconds } from './temporal.mts';
 import { FormatOffsetTimeZoneIdentifier, type TimeZoneIdentifierRecord } from './time-zone.mts';
 import { mark_TimeZoneAwareNotImplemented } from './not-implemented.mts';
 import {
@@ -31,13 +31,18 @@ export interface YearWeekRecord {
   readonly Year: bigint | undefined;
 }
 
-/** https://tc39.es/proposal-temporal/#sec-tointegerifintegral */
-export function* ToIntegerIfIntegral(argument: Value): PlainEvaluator<Integer> {
+/** https://tc39.es/proposal-temporal/#sec-snaptointeger */
+export function* SnapToInteger(argument: Value, mode: 'strict' | 'truncate-strict', minimum?: Integer, maximum?: Integer): PlainEvaluator<Integer> {
   const number = Q(yield* ToNumber(argument));
-  if (!number.isIntegralNumber()) {
-    return Throw.RangeError('$1 is not an integral number', argument);
+  if (number.isNaN() || number.isInfinity()) return Throw.RangeError('$1 is not a finite number', number);
+  let mv = R(number);
+  if (mode === 'truncate-strict') mv = truncate(mv);
+  else if (!Number.isInteger(mv)) {
+    return Throw.RangeError('$1 is not an integer', number);
   }
-  return BigInt(R(number));
+  if (minimum !== undefined && mv < minimum) return Throw.RangeError('$1 is too small', number);
+  if (maximum !== undefined && mv > maximum) return Throw.RangeError('$1 is too large', number);
+  return BigInt(mv);
 }
 
 /** https://tc39.es/proposal-temporal/#sec-getoptionsobject */
@@ -100,11 +105,7 @@ export function* GetRoundingIncrementOption(
   if (value === Value.undefined) {
     return 1n;
   }
-  const integerIncrement = Q(yield* ToIntegerWithTruncation(value));
-  if (integerIncrement < 1n || integerIncrement > 1e9) {
-    return Throw.RangeError('"roundingIncrement" ($1) is out of range', integerIncrement);
-  }
-  return integerIncrement;
+  return yield* SnapToInteger(value, 'truncate-strict', 1n, BigInt(1e9));
 }
 
 /** https://tc39.es/proposal-temporal/#sec-getutcepochnanoseconds */

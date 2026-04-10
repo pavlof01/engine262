@@ -9,7 +9,7 @@ import { isTemporalZonedDateTimeObject } from '../../intrinsics/Temporal/ZonedDa
 import { isTemporalPlainDateObject, type ISODateRecord } from '../../intrinsics/Temporal/PlainDate.mts';
 import { isTemporalPlainYearMonthObject } from '../../intrinsics/Temporal/PlainYearMonth.mts';
 import { floorDiv } from '../math.mts';
-import { ToZeroPaddedDecimalString } from './addition.mts';
+import { SnapToInteger, ToZeroPaddedDecimalString } from './addition.mts';
 import type { YearWeekRecord } from './addition.mts';
 import {
   EpochDaysToEpochMs,
@@ -20,7 +20,7 @@ import {
   MathematicalDaysInYear,
   MathematicalInLeapYear,
   TemporalUnit,
-  ToIntegerWithTruncation, ToOffsetString, ToPositiveIntegerWithTruncation, type DateUnit,
+  ToOffsetString, type DateUnit,
 } from './temporal.mts';
 import { ToTemporalTimeZoneIdentifier } from './time-zone.mts';
 import { mark_OtherCalendarNotImplemented, unreachable_OtherCalendarNotImplemented } from './not-implemented.mts';
@@ -205,9 +205,9 @@ export function* PrepareCalendarFields(
       any = true;
 
       if (Conversion === Table19_Conversion.ToIntegerWithTruncation) {
-        value = F(Number(Q(yield* ToIntegerWithTruncation(value))));
+        value = F(Number(Q(yield* SnapToInteger(value, 'truncate-strict'))));
       } else if (Conversion === Table19_Conversion.ToPositiveIntegerWithTruncation) {
-        value = F(Number(Q(yield* ToPositiveIntegerWithTruncation(value))));
+        value = F(Number(Q(yield* SnapToInteger(value, 'truncate-strict', 1n))));
       } else if (Conversion === Table19_Conversion.ToString) {
         value = Q(yield* ToString(value));
       } else if (Conversion === Table19_Conversion.ToTemporalTimeZoneIdentifier) {

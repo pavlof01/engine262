@@ -3,6 +3,7 @@ import {
   CanonicalizeCalendar,
   type CalendarType,
 } from '../../abstract-ops/temporal/calendar.mts';
+import { SnapToInteger } from '../../abstract-ops/temporal/addition.mts';
 import { bootstrapTemporalPlainYearMonthPrototype } from './PlainYearMonthPrototype.mts';
 import type { ISODateRecord } from './PlainDate.mts';
 import {
@@ -12,7 +13,6 @@ import {
   Value,
   UndefinedValue,
   F,
-  ToIntegerWithTruncation,
   type Arguments,
   type FunctionCallContext,
   type Realm,
@@ -55,8 +55,8 @@ function* PlainYearMonthConstructor([
   if (referenceISODay instanceof UndefinedValue) {
     referenceISODay = F(1);
   }
-  const y = Q(yield* ToIntegerWithTruncation(isoYear));
-  const m = Q(yield* ToIntegerWithTruncation(isoMonth));
+  const y = Q(yield* SnapToInteger(isoYear, 'truncate-strict'));
+  const m = Q(yield* SnapToInteger(isoMonth, 'truncate-strict'));
   if (_calendar instanceof UndefinedValue) {
     _calendar = Value('iso8601');
   }
@@ -64,7 +64,7 @@ function* PlainYearMonthConstructor([
     return Throw.TypeError('calendar is not a string');
   }
   const calendar = Q(CanonicalizeCalendar(_calendar.stringValue()));
-  const ref = Q(yield* ToIntegerWithTruncation(referenceISODay));
+  const ref = Q(yield* SnapToInteger(referenceISODay, 'truncate-strict'));
   if (!IsValidISODate(y, m, ref)) {
     return Throw.RangeError('$1-$2-$3 is not a valid date', y, m, ref);
   }

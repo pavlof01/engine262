@@ -7,9 +7,9 @@ import {
   abs, floorDiv, max, min, modulo,
 } from '../math.mts';
 import { Decimal } from '../../host-defined/decimal.mts';
-import { GetOptionsObject, type RoundingMode } from './addition.mts';
+import { GetOptionsObject, SnapToInteger, type RoundingMode } from './addition.mts';
 import {
-  Assert, type TimeDuration, TimeDurationFromComponents, nsPerDay, Value, type ValueEvaluator, ObjectValue, Q, GetTemporalOverflowOption, X, GetISODateTimeFor, JSStringValue, Throw, type PlainEvaluator, UndefinedValue, type PlainCompletion, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, Get, ToIntegerWithTruncation, FormatTimeString, type TimeUnit, TemporalUnit, Table21_LengthInNanoSeconds, RoundNumberToIncrement, GetDifferenceSettings, RoundTimeDuration, CombineDateAndTimeDuration, ZeroDateDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecord,
+  Assert, type TimeDuration, TimeDurationFromComponents, nsPerDay, Value, type ValueEvaluator, ObjectValue, Q, GetTemporalOverflowOption, X, GetISODateTimeFor, JSStringValue, Throw, type PlainEvaluator, UndefinedValue, type PlainCompletion, type FunctionObject, surroundingAgent, OrdinaryCreateFromConstructor, type Mutable, Get, FormatTimeString, type TimeUnit, TemporalUnit, Table21_LengthInNanoSeconds, RoundNumberToIncrement, GetDifferenceSettings, RoundTimeDuration, CombineDateAndTimeDuration, ZeroDateDuration, TemporalDurationFromInternal, CreateNegatedTemporalDuration, ToTemporalDuration, ToInternalDurationRecord,
   type Integer,
 } from '#self';
 
@@ -212,32 +212,32 @@ export function* ToTemporalTimeRecord(temporalTimeLike: ObjectValue, completenes
   let any = false;
   const hour = Q(yield* Get(temporalTimeLike, Value('hour')));
   if (!(hour instanceof UndefinedValue)) {
-    result.Hour = Q(yield* ToIntegerWithTruncation(hour));
+    result.Hour = Q(yield* SnapToInteger(hour, 'truncate-strict'));
     any = true;
   }
   const microsecond = Q(yield* Get(temporalTimeLike, Value('microsecond')));
   if (!(microsecond instanceof UndefinedValue)) {
-    result.Microsecond = Q(yield* ToIntegerWithTruncation(microsecond));
+    result.Microsecond = Q(yield* SnapToInteger(microsecond, 'truncate-strict'));
     any = true;
   }
   const millisecond = Q(yield* Get(temporalTimeLike, Value('millisecond')));
   if (!(millisecond instanceof UndefinedValue)) {
-    result.Millisecond = Q(yield* ToIntegerWithTruncation(millisecond));
+    result.Millisecond = Q(yield* SnapToInteger(millisecond, 'truncate-strict'));
     any = true;
   }
   const minute = Q(yield* Get(temporalTimeLike, Value('minute')));
   if (!(minute instanceof UndefinedValue)) {
-    result.Minute = Q(yield* ToIntegerWithTruncation(minute));
+    result.Minute = Q(yield* SnapToInteger(minute, 'truncate-strict'));
     any = true;
   }
   const nanosecond = Q(yield* Get(temporalTimeLike, Value('nanosecond')));
   if (!(nanosecond instanceof UndefinedValue)) {
-    result.Nanosecond = Q(yield* ToIntegerWithTruncation(nanosecond));
+    result.Nanosecond = Q(yield* SnapToInteger(nanosecond, 'truncate-strict'));
     any = true;
   }
   const second = Q(yield* Get(temporalTimeLike, Value('second')));
   if (!(second instanceof UndefinedValue)) {
-    result.Second = Q(yield* ToIntegerWithTruncation(second));
+    result.Second = Q(yield* SnapToInteger(second, 'truncate-strict'));
     any = true;
   }
   if (!any) {

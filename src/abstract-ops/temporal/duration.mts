@@ -8,7 +8,7 @@ import {
 } from '../math.mts';
 import { Decimal } from '../../host-defined/decimal.mts';
 import {
-  type TimeZoneIdentifier, GetUTCEpochNanoseconds, RoundingMode, ToIntegerIfIntegral,
+  type TimeZoneIdentifier, GetUTCEpochNanoseconds, RoundingMode, SnapToInteger,
 } from './addition.mts';
 import { CalendarDateAdd, type CalendarType, CalendarDateUntil } from './calendar.mts';
 import {
@@ -332,43 +332,43 @@ export function* ToPartialDurationRecord(temporalDurationLike: Value): PlainEval
   };
   const days = Q(yield* Get(temporalDurationLike, Value('days')));
   if (days !== Value.undefined) {
-    result.Days = Number(Q(yield* ToIntegerIfIntegral(days)));
+    result.Days = Number(Q(yield* SnapToInteger(days, 'strict')));
   }
   const hours = Q(yield* Get(temporalDurationLike, Value('hours')));
   if (hours !== Value.undefined) {
-    result.Hours = Number(Q(yield* ToIntegerIfIntegral(hours)));
+    result.Hours = Number(Q(yield* SnapToInteger(hours, 'strict')));
   }
   const microseconds = Q(yield* Get(temporalDurationLike, Value('microseconds')));
   if (microseconds !== Value.undefined) {
-    result.Microseconds = Number(Q(yield* ToIntegerIfIntegral(microseconds)));
+    result.Microseconds = Number(Q(yield* SnapToInteger(microseconds, 'strict')));
   }
   const milliseconds = Q(yield* Get(temporalDurationLike, Value('milliseconds')));
   if (milliseconds !== Value.undefined) {
-    result.Milliseconds = Number(Q(yield* ToIntegerIfIntegral(milliseconds)));
+    result.Milliseconds = Number(Q(yield* SnapToInteger(milliseconds, 'strict')));
   }
   const minutes = Q(yield* Get(temporalDurationLike, Value('minutes')));
   if (minutes !== Value.undefined) {
-    result.Minutes = Number(Q(yield* ToIntegerIfIntegral(minutes)));
+    result.Minutes = Number(Q(yield* SnapToInteger(minutes, 'strict')));
   }
   const months = Q(yield* Get(temporalDurationLike, Value('months')));
   if (months !== Value.undefined) {
-    result.Months = Number(Q(yield* ToIntegerIfIntegral(months)));
+    result.Months = Number(Q(yield* SnapToInteger(months, 'strict')));
   }
   const nanoseconds = Q(yield* Get(temporalDurationLike, Value('nanoseconds')));
   if (nanoseconds !== Value.undefined) {
-    result.Nanoseconds = Number(Q(yield* ToIntegerIfIntegral(nanoseconds)));
+    result.Nanoseconds = Number(Q(yield* SnapToInteger(nanoseconds, 'strict')));
   }
   const seconds = Q(yield* Get(temporalDurationLike, Value('seconds')));
   if (seconds !== Value.undefined) {
-    result.Seconds = Number(Q(yield* ToIntegerIfIntegral(seconds)));
+    result.Seconds = Number(Q(yield* SnapToInteger(seconds, 'strict')));
   }
   const weeks = Q(yield* Get(temporalDurationLike, Value('weeks')));
   if (weeks !== Value.undefined) {
-    result.Weeks = Number(Q(yield* ToIntegerIfIntegral(weeks)));
+    result.Weeks = Number(Q(yield* SnapToInteger(weeks, 'strict')));
   }
   const years = Q(yield* Get(temporalDurationLike, Value('years')));
   if (years !== Value.undefined) {
-    result.Years = Number(Q(yield* ToIntegerIfIntegral(years)));
+    result.Years = Number(Q(yield* SnapToInteger(years, 'strict')));
   }
 
   if (years === Value.undefined
@@ -585,13 +585,13 @@ export function ComputeNudgeWindow(
   R2: MathematicalValue;
   StartEpochNs: EpochNanoseconds;
   EndEpochNs: EpochNanoseconds;
-  StartDuration: DateDurationRecord;
-  EndDuration: DateDurationRecord;
+  StartDuration: InternalDurationRecord;
+  EndDuration: InternalDurationRecord;
 }> {
   let r1: MathematicalValue;
   let r2: MathematicalValue;
-  let startDuration;
-  let endDuration;
+  let startDateDuration;
+  let endDateDuration;
   if (unit === TemporalUnit.Year) {
     const years = RoundNumberToIncrement(Decimal(duration.Date.Years), increment, RoundingMode.Trunc);
     if (!additionalShift) {
@@ -600,8 +600,8 @@ export function ComputeNudgeWindow(
       r1 = Decimal(years + increment * sign);
     }
     r2 = r1.add(increment * sign);
-    startDuration = Q(CreateDateDurationRecord(r1.toBigInt(), 0n, 0n, 0n));
-    endDuration = Q(CreateDateDurationRecord(r2.toBigInt(), 0n, 0n, 0n));
+    startDateDuration = Q(CreateDateDurationRecord(r1.toBigInt(), 0n, 0n, 0n));
+    endDateDuration = Q(CreateDateDurationRecord(r2.toBigInt(), 0n, 0n, 0n));
   } else if (unit === TemporalUnit.Month) {
     const months = RoundNumberToIncrement(Decimal(duration.Date.Months), increment, RoundingMode.Trunc);
     if (!additionalShift) {
@@ -610,8 +610,8 @@ export function ComputeNudgeWindow(
       r1 = Decimal(months + increment * sign);
     }
     r2 = r1.add(increment * sign);
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r1.toBigInt()));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r2.toBigInt()));
+    startDateDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r1.toBigInt()));
+    endDateDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, 0n, r2.toBigInt()));
   } else if (unit === TemporalUnit.Week) {
     const yearsMonths = X(AdjustDateDurationRecord(duration.Date, 0n, 0n));
     const weeksStart = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, yearsMonths, 'constrain'));
@@ -620,15 +620,15 @@ export function ComputeNudgeWindow(
     const weeks = RoundNumberToIncrement(Decimal(duration.Date.Weeks + untilResult.Weeks), increment, RoundingMode.Trunc);
     r1 = Decimal(weeks);
     r2 = r1.add(increment * sign);
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r1.toBigInt()));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r2.toBigInt()));
+    startDateDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r1.toBigInt()));
+    endDateDuration = Q(AdjustDateDurationRecord(duration.Date, 0n, r2.toBigInt()));
   } else {
     Assert(unit === TemporalUnit.Day);
     const days = RoundNumberToIncrement(Decimal(duration.Date.Days), increment, RoundingMode.Trunc);
     r1 = Decimal(days);
     r2 = r1.add(increment * sign);
-    startDuration = Q(AdjustDateDurationRecord(duration.Date, r1.toBigInt()));
-    endDuration = Q(AdjustDateDurationRecord(duration.Date, r2.toBigInt()));
+    startDateDuration = Q(AdjustDateDurationRecord(duration.Date, r1.toBigInt()));
+    endDateDuration = Q(AdjustDateDurationRecord(duration.Date, r2.toBigInt()));
   }
   if (sign === 1n) Assert(r1.greaterThanOrEqual(0) && r1.lessThan(r2));
   if (sign === -1n) Assert(r1.lessThanOrEqual(0) && r1.greaterThan(r2));
@@ -636,7 +636,7 @@ export function ComputeNudgeWindow(
   if (r1.equals(0)) {
     startEpochNs = originEpochNs;
   } else {
-    const start = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, startDuration, 'constrain'));
+    const start = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, startDateDuration, 'constrain'));
     const startDateTime = CombineISODateAndTimeRecord(start, isoDateTime.Time);
     if (timeZone === undefined) {
       startEpochNs = GetUTCEpochNanoseconds(startDateTime);
@@ -644,7 +644,7 @@ export function ComputeNudgeWindow(
       startEpochNs = Q(GetEpochNanosecondsFor(timeZone, startDateTime, 'compatible'));
     }
   }
-  const end = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, endDuration, 'constrain'));
+  const end = Q(CalendarDateAdd(calendar, isoDateTime.ISODate, endDateDuration, 'constrain'));
   const endDateTime = CombineISODateAndTimeRecord(end, isoDateTime.Time);
   let endEpochNs;
   if (timeZone === undefined) {
@@ -652,6 +652,8 @@ export function ComputeNudgeWindow(
   } else {
     endEpochNs = Q(GetEpochNanosecondsFor(timeZone, endDateTime, 'compatible'));
   }
+  const startDuration = CombineDateAndTimeDuration(startDateDuration, 0n);
+  const endDuration = CombineDateAndTimeDuration(endDateDuration, 0n);
   return {
     R1: r1,
     R2: r2,
@@ -710,7 +712,7 @@ export function NudgeToCalendarUnit(
     Assert(r1.abs().lessThanOrEqual(total.abs()) && total.abs().lessThanOrEqual(r2.abs()));
     roundedUnit = ApplyUnsignedRoundingMode(total.abs(), r1.abs(), r2.abs(), unsignedRoundingMode);
   }
-  let resultDuration;
+  let resultDuration: InternalDurationRecord;
   let nudgedEpochNs;
   if (roundedUnit.equals(r2.abs())) {
     didExpandCalendarUnit = true;
@@ -720,7 +722,6 @@ export function NudgeToCalendarUnit(
     resultDuration = startDuration;
     nudgedEpochNs = startEpochNs;
   }
-  resultDuration = CombineDateAndTimeDuration(resultDuration, 0n);
   const nudgeResult: DurationNudgeResultRecord = {
     Duration: resultDuration,
     NudgedEpochNs: nudgedEpochNs,
