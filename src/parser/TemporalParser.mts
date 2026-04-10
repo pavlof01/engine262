@@ -418,9 +418,8 @@ export function ParseDateTimeUTCOffset(offsetString: string): PlainCompletion<bi
   if (!parseResult.TemporalDecimalFraction) {
     nanoseconds = 0n;
   } else {
-    const fraction = `${parseResult.TemporalDecimalFraction.digits}000000000`;
-    // https://github.com/tc39/ecma262/pull/3759/changes#r3059351279
-    const nanosecondsString = fraction.substring(0, 9);
+    const fraction = `${parseResult.TemporalDecimalFraction.separator + parseResult.TemporalDecimalFraction.digits}000000000`;
+    const nanosecondsString = fraction.substring(1, 10);
     nanoseconds = BigInt(nanosecondsString);
   }
   return sign * (((hours * 60n + minutes) * 60n + seconds) * BigInt(1e9) + nanoseconds);
