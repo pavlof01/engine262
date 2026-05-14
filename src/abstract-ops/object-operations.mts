@@ -90,10 +90,19 @@ export function* Get(O: ObjectValue, P: PropertyKeyValue): ValueEvaluator {
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
   const op = OperationHandle.begin(O.trace, 'Get', O);
-  op.log({ kind: 'if', taken: true, hint: `Step 3: Return ? O.[[Get]]("${propName}", O).` });
+  op.log({
+    kind: 'if',
+    taken: true,
+    hint: `Step 3: Return ? O.[[Get]]("${propName}", O).`,
+    description: `Invoke object's internal [[Get]] method to look up "${propName}". Walks own properties then prototype chain. Receiver (O) matters for accessor getters (used as 'this').`,
+  });
   const result = Q(yield* O.Get(P, O));
   const resultStr = result instanceof JSStringValue ? `"${result.stringValue()}"` : result === Value.undefined ? 'undefined' : result.type;
-  op.log({ kind: 'return', hint: `Get(O, "${propName}") → ${resultStr}` }, result);
+  op.log({
+    kind: 'return',
+    hint: `Get(O, "${propName}") → ${resultStr}`,
+    description: 'Property lookup result. undefined means property absent (or explicitly set to undefined).',
+  }, result);
   return result;
 }
 
@@ -102,12 +111,24 @@ export function* GetV(V: Value, P: PropertyKeyValue): ValueEvaluator {
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
   const op = OperationHandle.begin(V.trace, 'GetV', V);
-  op.log({ kind: 'call', hint: 'Step 2: Let O be ? ToObject(V).' });
+  op.log({
+    kind: 'call',
+    hint: 'Step 2: Let O be ? ToObject(V).',
+    description: 'GetV accepts any value (not just objects). Primitives are boxed into their wrapper object so property lookup can happen (e.g. "abc".length → String wrapper).',
+  });
   const O = Q(ToObject(V));
-  op.log({ kind: 'call', hint: `Step 3: Return ? O.[[Get]]("${propName}", V).` });
+  op.log({
+    kind: 'call',
+    hint: `Step 3: Return ? O.[[Get]]("${propName}", V).`,
+    description: `Look up "${propName}" on boxed object, but pass original V as receiver — accessor getters see the primitive, not the wrapper.`,
+  });
   const result = Q(yield* O.Get(P, V));
   const resultStr = result instanceof JSStringValue ? `"${result.stringValue()}"` : result === Value.undefined ? 'undefined' : result.type;
-  op.log({ kind: 'return', hint: `GetV(V, "${propName}") → ${resultStr}` }, result);
+  op.log({
+    kind: 'return',
+    hint: `GetV(V, "${propName}") → ${resultStr}`,
+    description: 'Property value from the wrapper/prototype chain.',
+  }, result);
   return result;
 }
 
@@ -200,17 +221,33 @@ export function* GetMethod(V: Value, P: PropertyKeyValue): ValueEvaluator<Undefi
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
   const op = OperationHandle.begin(V.trace, 'GetMethod', V);
-  op.log({ kind: 'call', hint: `Step 2: Let func be ? GetV(V, "${propName}").` });
+  op.log({
+    kind: 'call',
+    hint: `Step 2: Let func be ? GetV(V, "${propName}").`,
+    description: `Read property "${propName}" from V (boxing primitives if needed). GetMethod is the spec helper for "look up an optional method and verify it's callable" — used heavily by iteration, coercion, and Promise protocols.`,
+  });
   const func = Q(yield* GetV(V, P));
   if (func === Value.null || func === Value.undefined) {
-    op.log({ kind: 'return', hint: `GetMethod(V, "${propName}") → undefined (property is null/undefined)` }, Value.undefined);
+    op.log({
+      kind: 'return',
+      hint: `GetMethod(V, "${propName}") → undefined (property is null/undefined)`,
+      description: 'Spec treats both null and undefined as "no method present" — caller proceeds with default behavior instead of throwing.',
+    }, Value.undefined);
     return Value.undefined;
   }
   if (!IsCallable(func)) {
-    op.log({ kind: 'throw', hint: `GetMethod(V, "${propName}") → TypeError (not a function)` });
+    op.log({
+      kind: 'throw',
+      hint: `GetMethod(V, "${propName}") → TypeError (not a function)`,
+      description: 'Property exists but is not callable (e.g. a number or object). Caller asked for a method — non-callable value is a bug → TypeError.',
+    });
     return Throw.TypeError('$1 is not a function', func);
   }
-  op.log({ kind: 'return', hint: `GetMethod(V, "${propName}") → callable function found` }, func);
+  op.log({
+    kind: 'return',
+    hint: `GetMethod(V, "${propName}") → callable function found`,
+    description: 'Callable found — return it for the caller to invoke.',
+  }, func);
   return func;
 }
 
@@ -237,12 +274,25 @@ export function* Call(F: Value, V: Value, argumentsList: Arguments = []): ValueE
   Assert(argumentsList.every((a) => a instanceof Value));
   const op = OperationHandle.begin(V.trace, 'Call', V);
   if (!IsCallable(F)) {
-    op.log({ kind: 'throw', hint: 'Step 2: F is not callable — throw TypeError.' });
+    op.log({
+      kind: 'throw',
+      hint: 'Step 2: F is not callable — throw TypeError.',
+      description: 'Call requires a function. Non-callable F means caller passed wrong value (e.g. tried to call a number) — reject with TypeError.',
+    });
     return surroundingAgent.Throw('TypeError', 'NotAFunction', F);
   }
-  op.log({ kind: 'if', taken: true, hint: 'Step 2: F is callable — proceed.' });
+  op.log({
+    kind: 'if',
+    taken: true,
+    hint: 'Step 2: F is callable — proceed.',
+    description: 'F is a callable function (has [[Call]] internal method). Safe to invoke.',
+  });
   const result = EnsureCompletion(Q(yield* F.Call(V, argumentsList)));
-  op.log({ kind: 'return', hint: 'Step 3: Return ? F.[[Call]](V, argumentsList).' });
+  op.log({
+    kind: 'return',
+    hint: 'Step 3: Return ? F.[[Call]](V, argumentsList).',
+    description: "Invoke function via internal [[Call]] method. V becomes 'this' inside the function; argumentsList becomes the arguments array. Result propagates back (may be a thrown completion).",
+  });
   return result;
 }
 
