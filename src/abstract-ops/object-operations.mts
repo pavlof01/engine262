@@ -89,7 +89,10 @@ export function* Get(O: ObjectValue, P: PropertyKeyValue): ValueEvaluator {
   Assert(O instanceof ObjectValue);
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
-  const op = OperationHandle.begin(O.trace, 'Get', O);
+  const op = OperationHandle.begin(O.trace, 'Get', O, [
+    OperationHandle.formatValue(O),
+    `"${propName}"`,
+  ]);
   op.log({
     kind: 'if',
     taken: true,
@@ -110,7 +113,15 @@ export function* Get(O: ObjectValue, P: PropertyKeyValue): ValueEvaluator {
 export function* GetV(V: Value, P: PropertyKeyValue): ValueEvaluator {
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
-  const op = OperationHandle.begin(V.trace, 'GetV', V);
+  const op = OperationHandle.begin(V.trace, 'GetV', V, [
+    OperationHandle.formatValue(V),
+    `"${propName}"`,
+  ]);
+  op.log({
+    kind: 'assert',
+    hint: `Step 1: Assert IsPropertyKey("${propName}") is true.`,
+    description: 'Caller must pass a String or Symbol — only valid property keys. Spec-internal sanity check.',
+  });
   op.log({
     kind: 'call',
     hint: 'Step 2: Let O be ? ToObject(V).',
@@ -220,7 +231,15 @@ export function* DeletePropertyOrThrow(O: ObjectValue, P: PropertyKeyValue) {
 export function* GetMethod(V: Value, P: PropertyKeyValue): ValueEvaluator<UndefinedValue | FunctionObject> {
   Assert(IsPropertyKey(P));
   const propName = propKeyName(P);
-  const op = OperationHandle.begin(V.trace, 'GetMethod', V);
+  const op = OperationHandle.begin(V.trace, 'GetMethod', V, [
+    OperationHandle.formatValue(V),
+    `"${propName}"`,
+  ]);
+  op.log({
+    kind: 'assert',
+    hint: `Step 1: Assert IsPropertyKey("${propName}") is true.`,
+    description: 'Caller must pass a String or Symbol — only valid property keys. Spec-internal sanity check.',
+  });
   op.log({
     kind: 'call',
     hint: `Step 2: Let func be ? GetV(V, "${propName}").`,
@@ -272,7 +291,11 @@ export function* HasOwnProperty(O: ObjectValue, P: PropertyKeyValue): ValueEvalu
 /** https://tc39.es/ecma262/#sec-call */
 export function* Call(F: Value, V: Value, argumentsList: Arguments = []): ValueEvaluator {
   Assert(argumentsList.every((a) => a instanceof Value));
-  const op = OperationHandle.begin(V.trace, 'Call', V);
+  const callInputs = [OperationHandle.formatValue(F), OperationHandle.formatValue(V)];
+  if (argumentsList.length > 0) {
+    callInputs.push(`« ${argumentsList.map((a) => OperationHandle.formatValue(a)).join(', ')} »`);
+  }
+  const op = OperationHandle.begin(V.trace, 'Call', V, callInputs);
   if (!IsCallable(F)) {
     op.log({
       kind: 'throw',

@@ -38,7 +38,9 @@ import {
 
 /** https://tc39.es/ecma262/#sec-toprimitive */
 export function* ToPrimitive(input: Value, preferredType?: "string" | "number"): ValueEvaluator<PrimitiveValue> {
-  const op = OperationHandle.begin(input.trace, "ToPrimitive", input);
+  const inputs = [OperationHandle.formatValue(input)];
+  if (preferredType) inputs.push(`"${preferredType}"`);
+  const op = OperationHandle.begin(input.trace, "ToPrimitive", input, inputs);
   // 1. Assert: input is an ECMAScript language value.
   Assert(input instanceof Value);
   op.log({
@@ -170,7 +172,10 @@ export function* ToPrimitive(input: Value, preferredType?: "string" | "number"):
 
 /** https://tc39.es/ecma262/#sec-ordinarytoprimitive */
 export function* OrdinaryToPrimitive(O: ObjectValue, hint: "string" | "number"): ValueEvaluator<PrimitiveValue> {
-  const op = OperationHandle.begin(O.trace, "OrdinaryToPrimitive", O);
+  const op = OperationHandle.begin(O.trace, "OrdinaryToPrimitive", O, [
+    OperationHandle.formatValue(O),
+    `"${hint}"`,
+  ]);
   // 1. Assert: Type(O) is Object.
   Assert(O instanceof ObjectValue);
   // 2. Assert: hint is either string or number.
@@ -1293,74 +1298,177 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
   const op = OperationHandle.begin(argument.trace, "ToObject", argument);
   if (argument === Value.undefined) {
     op.log({
-      kind: "throw",
-      hint: "Step 1: argument is undefined — throw TypeError.",
+      kind: "if",
+      taken: true,
+      hint: "Step 1: argument is undefined.",
       description: "undefined has no object wrapper — accessing properties on undefined is a common bug source.",
     });
-    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "undefined");
-  } else if (argument === Value.null) {
     op.log({
       kind: "throw",
-      hint: "Step 2: argument is null — throw TypeError.",
+      hint: "Step 1: throw TypeError.",
+      description: "Cannot convert undefined to Object.",
+    });
+    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "undefined");
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 1: argument is not undefined — skip.",
+    description: "Continue to null check.",
+  });
+
+  if (argument === Value.null) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: "Step 2: argument is null.",
       description: "null has no object wrapper. (Object(null) interestingly returns a fresh {}, but ToObject(null) throws — different operations.)",
     });
-    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "null");
-  } else if (argument instanceof BooleanValue) {
     op.log({
-      kind: "return",
-      hint: `Step 3: argument is Boolean — return new Boolean object wrapping ${argument === Value.true ? "true" : "false"}.`,
+      kind: "throw",
+      hint: "Step 2: throw TypeError.",
+      description: "Cannot convert null to Object.",
+    });
+    return surroundingAgent.Throw("TypeError", "CannotConvertToObject", "null");
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 2: argument is not null — skip.",
+    description: "Continue to Boolean check.",
+  });
+
+  if (argument instanceof BooleanValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 3: argument is Boolean (${argument === Value.true ? "true" : "false"}).`,
       description: "Box the primitive in a Boolean wrapper object (so property access like (true).toString() works).",
     });
     const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Boolean.prototype%"), [
       "BooleanData",
     ]) as Mutable<BooleanObject>;
     obj.BooleanData = argument;
-    return obj;
-  } else if (argument instanceof NumberValue) {
     op.log({
       kind: "return",
-      hint: `Step 4: argument is Number — return new Number object wrapping ${R(argument)}.`,
+      hint: `Step 3: return new Boolean object wrapping ${argument === Value.true ? "true" : "false"}.`,
+      description: "Boolean primitive boxed into Boolean wrapper.",
+    });
+    return obj;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 3: argument is not Boolean — skip.",
+    description: "Continue to Number check.",
+  });
+
+  if (argument instanceof NumberValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 4: argument is Number (${R(argument)}).`,
       description: "Box the primitive in a Number wrapper — enables (5).toFixed(2) and similar method calls on primitives.",
     });
     const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Number.prototype%"), [
       "NumberData",
     ]) as Mutable<NumberObject>;
     obj.NumberData = argument;
-    return obj;
-  } else if (argument instanceof JSStringValue) {
     op.log({
       kind: "return",
-      hint: `Step 5: argument is String — return new String object wrapping "${argument.stringValue()}".`,
+      hint: `Step 4: return new Number object wrapping ${R(argument)}.`,
+      description: "Number primitive boxed into Number wrapper.",
+    });
+    return obj;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 4: argument is not Number — skip.",
+    description: "Continue to String check.",
+  });
+
+  if (argument instanceof JSStringValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 5: argument is String ("${argument.stringValue()}").`,
       description: 'Box the primitive in a String wrapper — gives access to length, methods, and indexed chars on string literals.',
     });
-    return StringCreate(argument, surroundingAgent.intrinsic("%String.prototype%"));
-  } else if (argument instanceof SymbolValue) {
+    const obj = StringCreate(argument, surroundingAgent.intrinsic("%String.prototype%"));
     op.log({
       kind: "return",
-      hint: "Step 6: argument is Symbol — return new Symbol object.",
+      hint: `Step 5: return new String object wrapping "${argument.stringValue()}".`,
+      description: "String primitive boxed into String wrapper.",
+    });
+    return obj;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 5: argument is not String — skip.",
+    description: "Continue to Symbol check.",
+  });
+
+  if (argument instanceof SymbolValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: "Step 6: argument is Symbol.",
       description: "Box the primitive Symbol in a Symbol wrapper object.",
     });
     const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%Symbol.prototype%"), [
       "SymbolData",
     ]) as Mutable<SymbolObject>;
     obj.SymbolData = argument;
-    return obj;
-  } else if (argument instanceof BigIntValue) {
     op.log({
       kind: "return",
-      hint: `Step 7: argument is BigInt — return new BigInt object wrapping ${R(argument)}.`,
+      hint: "Step 6: return new Symbol object.",
+      description: "Symbol primitive boxed into Symbol wrapper.",
+    });
+    return obj;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 6: argument is not Symbol — skip.",
+    description: "Continue to BigInt check.",
+  });
+
+  if (argument instanceof BigIntValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 7: argument is BigInt (${R(argument)}).`,
       description: "Box the primitive BigInt in a BigInt wrapper object.",
     });
     const obj = OrdinaryObjectCreate(surroundingAgent.intrinsic("%BigInt.prototype%"), [
       "BigIntData",
     ]) as Mutable<BigIntObject>;
     obj.BigIntData = argument;
+    op.log({
+      kind: "return",
+      hint: `Step 7: return new BigInt object wrapping ${R(argument)}.`,
+      description: "BigInt primitive boxed into BigInt wrapper.",
+    });
     return obj;
   }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 7: argument is not BigInt — skip.",
+    description: "Continue to Object identity case.",
+  });
+
   Assert(argument instanceof ObjectValue);
   op.log({
+    kind: "assert",
+    hint: "Step 8: Assert — argument is an Object.",
+    description: "By elimination: all primitive cases handled above.",
+  });
+  op.log({
     kind: "return",
-    hint: "Step 8: argument is already an Object — return as-is.",
+    hint: "Step 9: argument is already an Object — return as-is.",
     description: "Identity case: objects don't need boxing.",
   });
   return argument;
