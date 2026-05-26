@@ -1187,8 +1187,8 @@ export function* ToString(argument: Value): ValueEvaluator<JSStringValue> {
 
   if (argument instanceof NumberValue) {
     op.log({
-      kind: "operation",
-      hint: `Convert number ${R(argument)} to string.`,
+      kind: "call",
+      hint: `Return Number::toString(${R(argument)}, 10).`,
       description: "Number → string uses base-10 by default; NaN, ±Infinity get their canonical strings.",
     });
     const result = X(NumberValue.toString(argument, 10));

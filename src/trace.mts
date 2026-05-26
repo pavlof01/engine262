@@ -220,6 +220,16 @@ export class TraceRecord {
   }
 
   /**
+   * True when an operation is currently open on this record (stack non-empty).
+   * Lower-level ops (e.g. Number::equal) gate their own tracing on this so that
+   * they only emit nested steps when invoked under a traced parent — internal
+   * engine arithmetic with no active parent stays silent and never clobbers root.
+   */
+  hasActiveOperation(): boolean {
+    return this.stack.length > 0;
+  }
+
+  /**
    * Clear all trace data and reset counters
    */
   clear(): void {

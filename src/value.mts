@@ -8,6 +8,7 @@ import {
 import type { PrivateElementRecord } from './runtime-semantics/MethodDefinitionEvaluation.mts';
 import type { PlainEvaluator } from './evaluator.mts';
 import { TraceRecord } from './trace.mts';
+import { OperationHandle } from './trace-builder.mts';
 import {
   Assert,
   OrdinaryDefineOwnProperty,
@@ -283,213 +284,619 @@ export class NumberValue extends PrimitiveValue {
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus */
   static unaryMinus(x: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::unaryMinus', x, [OperationHandle.formatValue(x)])
+      : null;
+    // 1. If x is NaN, return NaN.
     if (x.isNaN()) {
-      return F(NaN);
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN → return NaN.' });
+      const r = F(NaN);
+      op?.log({ kind: 'return', hint: 'Step 1: return NaN.' }, r);
+      return r;
     }
-    return F(-R(x));
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: x is not NaN — continue.' });
+    // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
+    const r = F(-R(x));
+    op?.log({ kind: 'return', hint: 'Step 2: return the result of negating x (same magnitude, opposite sign).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT */
   static bitwiseNOT(x: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::bitwiseNOT', x, [OperationHandle.formatValue(x)])
+      : null;
     // 1. Let oldValue be ! ToInt32(x).
+    op?.log({ kind: 'call', hint: 'Step 1: Let oldValue be ! ToInt32(x).' });
     const oldValue = X(ToInt32(x));
     // 2. Return the result of applying bitwise complement to oldValue. The result is a signed 32-bit integer.
-    return F(~R(oldValue));
+    const r = F(~R(oldValue));
+    op?.log({ kind: 'return', hint: 'Step 2: return bitwise complement of oldValue (signed 32-bit integer).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate */
   static exponentiate(base: NumberValue, exponent: NumberValue) {
-    return F(R(base) ** R(exponent));
+    const op = base.trace.hasActiveOperation()
+      ? OperationHandle.begin(base.trace, 'Number::exponentiate', base, [OperationHandle.formatValue(base), OperationHandle.formatValue(exponent)])
+      : null;
+    if (op) {
+      const b = R(base);
+      const e = R(exponent);
+      const absB = Math.abs(b);
+      const isOddIntegral = (n: number) => Number.isFinite(n) && Math.floor(n) === n && (Math.abs(n) % 2 === 1);
+      // 1. If exponent is NaN, return NaN.
+      const s1 = exponent.isNaN();
+      op.log({ kind: 'if', taken: s1, hint: s1 ? 'Step 1: exponent is NaN → return NaN.' : 'Step 1: exponent is not NaN — continue.' });
+      if (!s1) {
+        // 2. If exponent is +0𝔽 or exponent is -0𝔽, return 1𝔽.
+        const s2 = e === 0;
+        op.log({ kind: 'if', taken: s2, hint: s2 ? 'Step 2: exponent is ±0 → return 1.' : 'Step 2: exponent is not ±0 — continue.', description: s2 ? 'Anything raised to the zero power is 1.' : undefined });
+        if (!s2) {
+          // 3. If base is NaN, return NaN.
+          const s3 = base.isNaN();
+          op.log({ kind: 'if', taken: s3, hint: s3 ? 'Step 3: base is NaN → return NaN.' : 'Step 3: base is not NaN — continue.' });
+          if (!s3) {
+            // 4. If base is +∞𝔽, then a. If exponent > +0𝔽, return +∞; otherwise +0.
+            const s4 = b === +Infinity;
+            op.log({ kind: 'if', taken: s4, hint: s4 ? `Step 4: base is +∞ → ${e > 0 ? 'exponent > 0 → return +∞' : 'exponent < 0 → return +0'}.` : 'Step 4: base is not +∞ — continue.' });
+            if (!s4) {
+              // 5. If base is -∞𝔽, then a/b. odd integral exponent vs non-odd-integral.
+              const s5 = b === -Infinity;
+              op.log({ kind: 'if', taken: s5, hint: s5 ? `Step 5: base is -∞ → ${isOddIntegral(e) ? 'odd integral exponent' : 'non-odd-integral exponent'}, ${e > 0 ? 'exponent > 0' : 'exponent < 0'}.` : 'Step 5: base is not -∞ — continue.' });
+              if (!s5) {
+                // 6. If base is +0𝔽, then a. exponent>0 → +0; otherwise +∞.
+                const s6 = Object.is(b, +0);
+                op.log({ kind: 'if', taken: s6, hint: s6 ? `Step 6: base is +0 → ${e > 0 ? 'exponent > 0 → return +0' : 'exponent < 0 → return +∞'}.` : 'Step 6: base is not +0 — continue.' });
+                if (!s6) {
+                  // 7. If base is -0𝔽, then a/b. odd integral exponent vs non-odd-integral.
+                  const s7 = Object.is(b, -0);
+                  op.log({ kind: 'if', taken: s7, hint: s7 ? `Step 7: base is -0 → ${isOddIntegral(e) ? 'odd integral exponent' : 'non-odd-integral exponent'}, ${e > 0 ? 'exponent > 0' : 'exponent < 0'}.` : 'Step 7: base is not -0 — continue.' });
+                  if (!s7) {
+                    // 8. Assert: base is finite and nonzero.
+                    op.log({ kind: 'operation', hint: 'Step 8: assert base is finite and nonzero.' });
+                    // 9. If exponent is +∞𝔽, then a/b/c. |base| > 1 → +∞; = 1 → NaN; < 1 → +0.
+                    const s9 = e === +Infinity;
+                    op.log({ kind: 'if', taken: s9, hint: s9 ? `Step 9: exponent is +∞ → |base| ${absB > 1 ? '> 1 → return +∞' : absB === 1 ? '= 1 → return NaN' : '< 1 → return +0'}.` : 'Step 9: exponent is not +∞ — continue.' });
+                    if (!s9) {
+                      // 10. If exponent is -∞𝔽, then a/b/c. |base| > 1 → +0; = 1 → NaN; < 1 → +∞.
+                      const s10 = e === -Infinity;
+                      op.log({ kind: 'if', taken: s10, hint: s10 ? `Step 10: exponent is -∞ → |base| ${absB > 1 ? '> 1 → return +0' : absB === 1 ? '= 1 → return NaN' : '< 1 → return +∞'}.` : 'Step 10: exponent is not -∞ — continue.' });
+                      if (!s10) {
+                        // 11. Assert: exponent is finite and nonzero.
+                        op.log({ kind: 'operation', hint: 'Step 11: assert exponent is finite and nonzero.' });
+                        // 12. If base < -0𝔽 and exponent is not an integral Number, return NaN.
+                        const s12 = b < 0 && !(Number.isFinite(e) && Math.floor(e) === e);
+                        op.log({ kind: 'if', taken: s12, hint: s12 ? 'Step 12: base < 0 and exponent is not integral → return NaN.' : 'Step 12: not (base < 0 and non-integral exponent) — continue.', description: s12 ? 'Real-valued power of a negative base requires an integer exponent.' : undefined });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // 13. Return an implementation-approximated Number value representing ℝ(base) ** ℝ(exponent).
+    const r = F(R(base) ** R(exponent));
+    op?.log({ kind: 'return', hint: 'Return: F(R(base) ** R(exponent)).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-multiply */
   static multiply(x: NumberValue, y: NumberValue) {
-    return F(R(x) * R(y));
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::multiply', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    if (op) {
+      const xVal = R(x);
+      const yVal = R(y);
+      // 1. If x is NaN or y is NaN, return NaN.
+      const s1 = x.isNaN() || y.isNaN();
+      op.log({ kind: 'if', taken: s1, hint: s1 ? 'Step 1: x or y is NaN → return NaN.' : 'Step 1: neither x nor y is NaN — continue.' });
+      if (!s1) {
+        // 2. If x is ±∞: a. y is ±0 → NaN; b. y > 0 → x; c. y < 0 → -x.
+        const s2 = x.isInfinity();
+        op.log({ kind: 'if', taken: s2, hint: s2 ? `Step 2: x is ±∞ → ${yVal === 0 ? '2a: y is ±0 → return NaN' : yVal > 0 ? '2b: y > 0 → return x' : '2c: y < 0 → return -x'}.` : 'Step 2: x is finite — continue.' });
+        if (!s2) {
+          // 3. If y is ±∞: a. x is ±0 → NaN; b. x > 0 → y; c. x < 0 → -y.
+          const s3 = y.isInfinity();
+          op.log({ kind: 'if', taken: s3, hint: s3 ? `Step 3: y is ±∞ → ${xVal === 0 ? '3a: x is ±0 → return NaN' : xVal > 0 ? '3b: x > 0 → return y' : '3c: x < 0 → return -y'}.` : 'Step 3: y is finite — continue.' });
+        }
+      }
+    }
+    // 4. Return 𝔽(ℝ(x) × ℝ(y)).
+    const r = F(R(x) * R(y));
+    op?.log({ kind: 'return', hint: 'Step 4: return F(R(x) * R(y)).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-divide */
   static divide(x: NumberValue, y: NumberValue) {
-    return F(R(x) / R(y));
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::divide', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    if (op) {
+      const xVal = R(x);
+      const yVal = R(y);
+      // 1. If x is NaN or y is NaN, return NaN.
+      const s1 = x.isNaN() || y.isNaN();
+      op.log({ kind: 'if', taken: s1, hint: s1 ? 'Step 1: x or y is NaN → return NaN.' : 'Step 1: neither x nor y is NaN — continue.' });
+      if (!s1) {
+        // 2. If x is ±∞: a. y is ±∞ → NaN; b. y ≥ +0 → x; c. y < 0 → -x.
+        const s2 = x.isInfinity();
+        op.log({ kind: 'if', taken: s2, hint: s2 ? `Step 2: x is ±∞ → ${y.isInfinity() ? '2a: y is ±∞ → return NaN' : yVal >= 0 ? '2b: y ≥ +0 → return x' : '2c: y < 0 → return -x'}.` : 'Step 2: x is finite — continue.' });
+        if (!s2) {
+          // 3. If y is +∞: a. x ≥ +0 → +0; otherwise -0.
+          const s3 = yVal === +Infinity;
+          op.log({ kind: 'if', taken: s3, hint: s3 ? `Step 3: y is +∞ → ${xVal >= 0 && !Object.is(xVal, -0) ? 'x ≥ +0 → return +0' : 'x < 0 (or -0) → return -0'}.` : 'Step 3: y is not +∞ — continue.' });
+          if (!s3) {
+            // 4. If y is -∞: a. x ≥ +0 → -0; otherwise +0.
+            const s4 = yVal === -Infinity;
+            op.log({ kind: 'if', taken: s4, hint: s4 ? `Step 4: y is -∞ → ${xVal >= 0 && !Object.is(xVal, -0) ? 'x ≥ +0 → return -0' : 'x < 0 (or -0) → return +0'}.` : 'Step 4: y is not -∞ — continue.' });
+            if (!s4) {
+              // 5. If x is ±0: a. y is ±0 → NaN; b. y > 0 → x; c. y < 0 → -x.
+              const s5 = xVal === 0;
+              op.log({ kind: 'if', taken: s5, hint: s5 ? `Step 5: x is ±0 → ${yVal === 0 ? '5a: y is ±0 → return NaN' : yVal > 0 ? '5b: y > 0 → return x' : '5c: y < 0 → return -x'}.` : 'Step 5: x is not ±0 — continue.' });
+              if (!s5) {
+                // 6. If y is +0: a. x > 0 → +∞; otherwise -∞.
+                const s6 = Object.is(yVal, +0);
+                op.log({ kind: 'if', taken: s6, hint: s6 ? `Step 6: y is +0 → ${xVal > 0 ? 'x > 0 → return +∞' : 'x < 0 → return -∞'}.` : 'Step 6: y is not +0 — continue.' });
+                if (!s6) {
+                  // 7. If y is -0: a. x > 0 → -∞; otherwise +∞.
+                  const s7 = Object.is(yVal, -0);
+                  op.log({ kind: 'if', taken: s7, hint: s7 ? `Step 7: y is -0 → ${xVal > 0 ? 'x > 0 → return -∞' : 'x < 0 → return +∞'}.` : 'Step 7: y is not -0 — continue.' });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // 8. Return 𝔽(ℝ(x) / ℝ(y)).
+    const r = F(R(x) / R(y));
+    op?.log({ kind: 'return', hint: 'Step 8: return F(R(x) / R(y)).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-remainder */
   static remainder(n: NumberValue, d: NumberValue) {
-    return F(R(n) % R(d));
+    const op = n.trace.hasActiveOperation()
+      ? OperationHandle.begin(n.trace, 'Number::remainder', n, [OperationHandle.formatValue(n), OperationHandle.formatValue(d)])
+      : null;
+    if (op) {
+      const nVal = R(n);
+      const dVal = R(d);
+      // 1. If n is NaN or d is NaN, return NaN.
+      const s1 = n.isNaN() || d.isNaN();
+      op.log({ kind: 'if', taken: s1, hint: s1 ? 'Step 1: n or d is NaN → return NaN.' : 'Step 1: neither n nor d is NaN — continue.' });
+      if (!s1) {
+        // 2. If n is +∞𝔽 or n is -∞𝔽, return NaN.
+        const s2 = n.isInfinity();
+        op.log({ kind: 'if', taken: s2, hint: s2 ? 'Step 2: n is ±∞ → return NaN.' : 'Step 2: n is finite — continue.', description: s2 ? 'Infinity has no defined remainder.' : undefined });
+        if (!s2) {
+          // 3. If d is +∞𝔽 or d is -∞𝔽, return n.
+          const s3 = d.isInfinity();
+          op.log({ kind: 'if', taken: s3, hint: s3 ? 'Step 3: d is ±∞ → return n.' : 'Step 3: d is finite — continue.', description: s3 ? 'Any finite n is its own remainder modulo ∞.' : undefined });
+          if (!s3) {
+            // 4. If d is +0𝔽 or d is -0𝔽, return NaN.
+            const s4 = dVal === 0;
+            op.log({ kind: 'if', taken: s4, hint: s4 ? 'Step 4: d is ±0 → return NaN (division by zero).' : 'Step 4: d is nonzero — continue.' });
+            if (!s4) {
+              // 5. If n is +0𝔽 or n is -0𝔽, return n.
+              const s5 = nVal === 0;
+              op.log({ kind: 'if', taken: s5, hint: s5 ? 'Step 5: n is ±0 → return n.' : 'Step 5: n is nonzero — continue.' });
+              if (!s5) {
+                // 6. Assert: n and d are finite and nonzero.
+                op.log({ kind: 'operation', hint: 'Step 6: assert n and d are finite and nonzero.' });
+                // 7-11. Compute r = n - d × truncate(n / d).
+                op.log({ kind: 'operation', hint: 'Steps 7–11: r = 𝔽(ℝ(n) − ℝ(d) × truncate(ℝ(n) / ℝ(d))).' });
+              }
+            }
+          }
+        }
+      }
+    }
+    const r = F(R(n) % R(d));
+    op?.log({ kind: 'return', hint: 'Return: F(R(n) % R(d)).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-add */
   static add(x: NumberValue, y: NumberValue) {
-    return F(R(x) + R(y));
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::add', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    if (op) {
+      const xVal = R(x);
+      const yVal = R(y);
+      // 1. If x is NaN or y is NaN, return NaN.
+      const s1 = x.isNaN() || y.isNaN();
+      op.log({ kind: 'if', taken: s1, hint: s1 ? 'Step 1: x or y is NaN → return NaN.' : 'Step 1: neither x nor y is NaN — continue.' });
+      if (!s1) {
+        // 2. If x is +∞ and y is -∞ → NaN.
+        const s2 = xVal === +Infinity && yVal === -Infinity;
+        op.log({ kind: 'if', taken: s2, hint: s2 ? 'Step 2: x is +∞ and y is -∞ → return NaN.' : 'Step 2: not (x = +∞ and y = -∞) — continue.', description: s2 ? '+∞ + -∞ is indeterminate.' : undefined });
+        if (!s2) {
+          // 3. If x is -∞ and y is +∞ → NaN.
+          const s3 = xVal === -Infinity && yVal === +Infinity;
+          op.log({ kind: 'if', taken: s3, hint: s3 ? 'Step 3: x is -∞ and y is +∞ → return NaN.' : 'Step 3: not (x = -∞ and y = +∞) — continue.' });
+          if (!s3) {
+            // 4. If x is ±∞ → x.
+            const s4 = x.isInfinity();
+            op.log({ kind: 'if', taken: s4, hint: s4 ? 'Step 4: x is ±∞ → return x.' : 'Step 4: x is finite — continue.' });
+            if (!s4) {
+              // 5. If y is ±∞ → y.
+              const s5 = y.isInfinity();
+              op.log({ kind: 'if', taken: s5, hint: s5 ? 'Step 5: y is ±∞ → return y.' : 'Step 5: y is finite — continue.' });
+              if (!s5) {
+                // 6. Assert: x and y both finite.
+                op.log({ kind: 'operation', hint: 'Step 6: assert x and y are both finite.' });
+                // 7. If x is -0 and y is -0 → -0.
+                const s7 = Object.is(xVal, -0) && Object.is(yVal, -0);
+                op.log({ kind: 'if', taken: s7, hint: s7 ? 'Step 7: x is -0 and y is -0 → return -0.' : 'Step 7: not (x = -0 and y = -0) — continue.', description: s7 ? 'Only sum of two -0s preserves the negative sign of zero under IEEE 754.' : undefined });
+              }
+            }
+          }
+        }
+      }
+    }
+    // 8. Return 𝔽(ℝ(x) + ℝ(y)).
+    const r = F(R(x) + R(y));
+    op?.log({ kind: 'return', hint: 'Step 8: return F(R(x) + R(y)).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-subtract */
   static subtract(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::subtract', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // The result of - operator is x + (-y).
-    return NumberValue.add(x, F(-R(y)));
+    op?.log({ kind: 'call', hint: 'Step 1: Return Number::add(x, F(-R(y))).' });
+    const r = NumberValue.add(x, F(-R(y)));
+    op?.log({ kind: 'return', hint: 'Step 1: return result of Number::add.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-leftShift */
   static leftShift(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::leftShift', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Let lnum be ! ToInt32(x).
+    op?.log({ kind: 'call', hint: 'Step 1: Let lnum be ! ToInt32(x).' });
     const lnum = X(ToInt32(x));
     // 2. Let rnum be ! ToUint32(y).
+    op?.log({ kind: 'call', hint: 'Step 2: Let rnum be ! ToUint32(y).' });
     const rnum = X(ToUint32(y));
     // 3. Let shiftCount be the result of masking out all but the least significant 5 bits of rnum, that is, compute rnum & 0x1F.
     const shiftCount = R(rnum) & 0x1F; // eslint-disable-line no-bitwise
+    op?.log({ kind: 'operation', hint: `Step 3: shiftCount = rnum & 0x1F = ${shiftCount}.` });
     // 4. Return the result of left shifting lnum by shiftCount bits. The result is a signed 32-bit integer.
-    return F(R(lnum) << shiftCount); // eslint-disable-line no-bitwise
+    const r = F(R(lnum) << shiftCount); // eslint-disable-line no-bitwise
+    op?.log({ kind: 'return', hint: 'Step 4: return lnum left-shifted by shiftCount bits (signed 32-bit).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift */
   static signedRightShift(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::signedRightShift', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Let lnum be ! ToInt32(x).
+    op?.log({ kind: 'call', hint: 'Step 1: Let lnum be ! ToInt32(x).' });
     const lnum = X(ToInt32(x));
     // 2. Let rnum be ! ToUint32(y).
+    op?.log({ kind: 'call', hint: 'Step 2: Let rnum be ! ToUint32(y).' });
     const rnum = X(ToUint32(y));
     // 3. Let shiftCount be the result of masking out all but the least significant 5 bits of rnum, that is, compute rnum & 0x1F.
     const shiftCount = R(rnum) & 0x1F; // eslint-disable-line no-bitwise
+    op?.log({ kind: 'operation', hint: `Step 3: shiftCount = rnum & 0x1F = ${shiftCount}.` });
     // 4. Return the result of performing a sign-extending right shift of lnum by shiftCount bits.
-    //    The most significant bit is propagated. The result is a signed 32-bit integer.
-    return F(R(lnum) >> shiftCount); // eslint-disable-line no-bitwise
+    const r = F(R(lnum) >> shiftCount); // eslint-disable-line no-bitwise
+    op?.log({ kind: 'return', hint: 'Step 4: return lnum sign-extended right-shifted by shiftCount bits.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift */
   static unsignedRightShift(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::unsignedRightShift', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Let lnum be ! ToInt32(x).
+    op?.log({ kind: 'call', hint: 'Step 1: Let lnum be ! ToInt32(x).' });
     const lnum = X(ToInt32(x));
     // 2. Let rnum be ! ToUint32(y).
+    op?.log({ kind: 'call', hint: 'Step 2: Let rnum be ! ToUint32(y).' });
     const rnum = X(ToUint32(y));
     // 3. Let shiftCount be the result of masking out all but the least significant 5 bits of rnum, that is, compute rnum & 0x1F.
     const shiftCount = R(rnum) & 0x1F; // eslint-disable-line no-bitwise
+    op?.log({ kind: 'operation', hint: `Step 3: shiftCount = rnum & 0x1F = ${shiftCount}.` });
     // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits.
-    //    Vacated bits are filled with zero. The result is an unsigned 32-bit integer.
-    return F(R(lnum) >>> shiftCount); // eslint-disable-line no-bitwise
+    const r = F(R(lnum) >>> shiftCount); // eslint-disable-line no-bitwise
+    op?.log({ kind: 'return', hint: 'Step 4: return lnum zero-filling right-shifted by shiftCount bits (unsigned 32-bit).' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-lessThan */
   static lessThan(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::lessThan', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    const xVal = R(x);
+    const yVal = R(y);
+    // 1. If x is NaN, return undefined.
     if (x.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN → return undefined.', description: 'Comparisons with NaN are unordered; < then yields false.' });
+      op?.log({ kind: 'return', hint: 'Step 1: return undefined.' }, Value.undefined);
       return Value.undefined;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: x is not NaN — continue.' });
+    // 2. If y is NaN, return undefined.
     if (y.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 2: y is NaN → return undefined.', description: 'Comparisons with NaN are unordered.' });
+      op?.log({ kind: 'return', hint: 'Step 2: return undefined.' }, Value.undefined);
       return Value.undefined;
     }
-    // If nx and ny are the same Number value, return false.
-    // If nx is +0 and ny is -0, return false.
-    // If nx is -0 and ny is +0, return false.
-    if (R(x) === R(y)) {
+    op?.log({ kind: 'if', taken: false, hint: 'Step 2: y is not NaN — continue.' });
+    // 3. If x and y are the same Number value, return false.
+    // 4. If x is +0𝔽 and y is -0𝔽, return false.
+    // 5. If x is -0𝔽 and y is +0𝔽, return false.
+    // (This engine folds spec steps 3–5 into a single === check: +0 === -0 is true.)
+    if (xVal === yVal) {
+      op?.log({ kind: 'if', taken: true, hint: 'Steps 3–5: x and y are the same Number value (or are +0/-0) → return false.' });
+      op?.log({ kind: 'return', hint: 'Steps 3–5: return false.' }, Value.false);
       return Value.false;
     }
-    if (R(x) === +Infinity) {
+    op?.log({ kind: 'if', taken: false, hint: 'Steps 3–5: x and y are not equal Number values — continue.' });
+    // 6. If x is +∞𝔽, return false.
+    if (xVal === +Infinity) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 6: x is +∞ → return false.', description: 'Nothing is greater than +∞, so +∞ < y is always false.' });
+      op?.log({ kind: 'return', hint: 'Step 6: return false.' }, Value.false);
       return Value.false;
     }
-    if (R(y) === +Infinity) {
+    op?.log({ kind: 'if', taken: false, hint: 'Step 6: x is not +∞ — continue.' });
+    // 7. If y is +∞𝔽, return true.
+    if (yVal === +Infinity) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 7: y is +∞ → return true.', description: 'Every finite x (and -∞) is less than +∞.' });
+      op?.log({ kind: 'return', hint: 'Step 7: return true.' }, Value.true);
       return Value.true;
     }
-    if (R(y) === -Infinity) {
+    op?.log({ kind: 'if', taken: false, hint: 'Step 7: y is not +∞ — continue.' });
+    // 8. If y is -∞𝔽, return false.
+    if (yVal === -Infinity) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 8: y is -∞ → return false.', description: 'Nothing is less than -∞.' });
+      op?.log({ kind: 'return', hint: 'Step 8: return false.' }, Value.false);
       return Value.false;
     }
-    if (R(x) === -Infinity) {
+    op?.log({ kind: 'if', taken: false, hint: 'Step 8: y is not -∞ — continue.' });
+    // 9. If x is -∞𝔽, return true.
+    if (xVal === -Infinity) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 9: x is -∞ → return true.', description: '-∞ is less than every finite y (and +∞).' });
+      op?.log({ kind: 'return', hint: 'Step 9: return true.' }, Value.true);
       return Value.true;
     }
-    return R(x) < R(y) ? Value.true : Value.false;
+    op?.log({ kind: 'if', taken: false, hint: 'Step 9: x is not -∞ — continue.' });
+    // 10. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
+    const lt = xVal < yVal;
+    op?.log({ kind: 'return', hint: `Step 10: ℝ(x) < ℝ(y) is ${lt ? 'true' : 'false'} → return ${lt ? 'true' : 'false'}.`, description: 'Both finite — compare mathematical values.' }, lt ? Value.true : Value.false);
+    return lt ? Value.true : Value.false;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-equal */
   static equal(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::equal', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    // 1. If x is NaN, return false.
     if (x.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN → return false.', description: 'NaN is not equal to anything, including itself.' });
+      op?.log({ kind: 'return', hint: 'Step 1: return false.' }, Value.false);
       return Value.false;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: x is not NaN — continue.' });
+    // 2. If y is NaN, return false.
     if (y.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 2: y is NaN → return false.', description: 'NaN is not equal to anything, including itself.' });
+      op?.log({ kind: 'return', hint: 'Step 2: return false.' }, Value.false);
       return Value.false;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 2: y is not NaN — continue.' });
     const xVal = R(x);
     const yVal = R(y);
+    // 3. If x is the same Number value as y, return true.
     if (xVal === yVal) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 3: x is the same Number value as y → return true.', description: 'Exact equality (note: this engine folds +0/-0 here via ===, returning true before steps 4–5).' });
+      op?.log({ kind: 'return', hint: 'Step 3: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 3: x is not the same Number value as y — continue.' });
+    // 4. If x is +0𝔽 and y is -0𝔽, return true.
     if (Object.is(xVal, 0) && Object.is(yVal, -0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 4: x is +0 and y is -0 → return true.', description: '+0 and -0 compare equal under ==/===.' });
+      op?.log({ kind: 'return', hint: 'Step 4: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 4: not (x is +0 and y is -0) — continue.' });
+    // 5. If x is -0𝔽 and y is +0𝔽, return true.
     if (Object.is(xVal, -0) && Object.is(yVal, 0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 5: x is -0 and y is +0 → return true.', description: 'Symmetric signed-zero case.' });
+      op?.log({ kind: 'return', hint: 'Step 5: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 5: not (x is -0 and y is +0) — continue.' });
+    // 6. Return false.
+    op?.log({ kind: 'return', hint: 'Step 6: return false.', description: 'Distinct finite Numbers are not equal.' }, Value.false);
     return Value.false;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-sameValue */
   static sameValue(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::sameValue', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    // 1. If x is NaN and y is NaN, return true.
     if (x.isNaN() && y.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN and y is NaN → return true.', description: 'SameValue treats NaN as equal to NaN (unlike ==/===).' });
+      op?.log({ kind: 'return', hint: 'Step 1: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: not (x and y both NaN) — continue.' });
     const xVal = R(x);
     const yVal = R(y);
+    // 2. If x is +0𝔽 and y is -0𝔽, return false.
     if (Object.is(xVal, 0) && Object.is(yVal, -0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 2: x is +0 and y is -0 → return false.', description: 'SameValue distinguishes signed zeros (unlike ==/===).' });
+      op?.log({ kind: 'return', hint: 'Step 2: return false.' }, Value.false);
       return Value.false;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 2: not (x is +0 and y is -0) — continue.' });
+    // 3. If x is -0𝔽 and y is +0𝔽, return false.
     if (Object.is(xVal, -0) && Object.is(yVal, 0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 3: x is -0 and y is +0 → return false.' });
+      op?.log({ kind: 'return', hint: 'Step 3: return false.' }, Value.false);
       return Value.false;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 3: not (x is -0 and y is +0) — continue.' });
+    // 4. If x is the same Number value as y, return true.
     if (xVal === yVal) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 4: x is the same Number value as y → return true.' });
+      op?.log({ kind: 'return', hint: 'Step 4: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 4: x is not the same Number value as y — continue.' });
+    // 5. Return false.
+    op?.log({ kind: 'return', hint: 'Step 5: return false.' }, Value.false);
     return Value.false;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero */
   static sameValueZero(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::sameValueZero', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    // 1. If x is NaN and y is NaN, return true.
     if (x.isNaN() && y.isNaN()) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN and y is NaN → return true.', description: 'SameValueZero treats NaN as equal to NaN.' });
+      op?.log({ kind: 'return', hint: 'Step 1: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: not (x and y both NaN) — continue.' });
     const xVal = R(x);
     const yVal = R(y);
+    // 2. If x is +0𝔽 and y is -0𝔽, return true.
     if (Object.is(xVal, 0) && Object.is(yVal, -0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 2: x is +0 and y is -0 → return true.', description: 'SameValueZero ignores the sign of zero (unlike SameValue).' });
+      op?.log({ kind: 'return', hint: 'Step 2: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 2: not (x is +0 and y is -0) — continue.' });
+    // 3. If x is -0𝔽 and y is +0𝔽, return true.
     if (Object.is(xVal, -0) && Object.is(yVal, 0)) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 3: x is -0 and y is +0 → return true.' });
+      op?.log({ kind: 'return', hint: 'Step 3: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 3: not (x is -0 and y is +0) — continue.' });
+    // 4. If x is the same Number value as y, return true.
     if (xVal === yVal) {
+      op?.log({ kind: 'if', taken: true, hint: 'Step 4: x is the same Number value as y → return true.' });
+      op?.log({ kind: 'return', hint: 'Step 4: return true.' }, Value.true);
       return Value.true;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 4: x is not the same Number value as y — continue.' });
+    // 5. Return false.
+    op?.log({ kind: 'return', hint: 'Step 5: return false.' }, Value.false);
     return Value.false;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND */
   static bitwiseAND(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::bitwiseAND', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Return NumberBitwiseOp(&, x, y).
-    return NumberBitwiseOp('&', x, y);
+    op?.log({ kind: 'call', hint: 'Step 1: Return NumberBitwiseOp(&, x, y).' });
+    const r = NumberBitwiseOp('&', x, y);
+    op?.log({ kind: 'return', hint: 'Step 1: return result of NumberBitwiseOp.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR */
   static bitwiseXOR(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::bitwiseXOR', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Return NumberBitwiseOp(^, x, y).
-    return NumberBitwiseOp('^', x, y);
+    op?.log({ kind: 'call', hint: 'Step 1: Return NumberBitwiseOp(^, x, y).' });
+    const r = NumberBitwiseOp('^', x, y);
+    op?.log({ kind: 'return', hint: 'Step 1: return result of NumberBitwiseOp.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR */
   static bitwiseOR(x: NumberValue, y: NumberValue) {
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'Number::bitwiseOR', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
     // 1. Return NumberBitwiseOp(|, x, y).
-    return NumberBitwiseOp('|', x, y);
+    op?.log({ kind: 'call', hint: 'Step 1: Return NumberBitwiseOp(|, x, y).' });
+    const r = NumberBitwiseOp('|', x, y);
+    op?.log({ kind: 'return', hint: 'Step 1: return result of NumberBitwiseOp.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-number-tostring */
   static override toString(xV: NumberValue, radix: number): JSStringValue {
+    const op = xV.trace.hasActiveOperation()
+      ? OperationHandle.begin(xV.trace, 'Number::toString', xV, [OperationHandle.formatValue(xV), String(radix)])
+      : null;
+    // 1. If x is NaN, return "NaN".
     if (xV.isNaN()) {
-      return Value('NaN');
+      op?.log({ kind: 'if', taken: true, hint: 'Step 1: x is NaN → return "NaN".' });
+      const r = Value('NaN');
+      op?.log({ kind: 'return', hint: 'Step 1: return "NaN".' }, r);
+      return r;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 1: x is not NaN — continue.' });
     const x = R(xV);
+    // 2. If x is +0𝔽 or x is -0𝔽, return "0".
     if (Object.is(x, -0) || Object.is(x, 0)) {
-      return Value('0');
+      op?.log({ kind: 'if', taken: true, hint: 'Step 2: x is ±0 → return "0".' });
+      const r = Value('0');
+      op?.log({ kind: 'return', hint: 'Step 2: return "0".' }, r);
+      return r;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 2: x is not ±0 — continue.' });
+    // 3. If x < -0𝔽, return the string-concatenation of "-" and Number::toString(-x, radix).
     if (x < 0) {
-      return Value(`-${NumberValue.toString(F(-x), radix).stringValue()}`);
+      op?.log({ kind: 'if', taken: true, hint: 'Step 3: x < 0 → return "-" + Number::toString(-x, radix).' });
+      op?.log({ kind: 'call', hint: 'Step 3: recursive call Number::toString(-x, radix).' });
+      const negX = F(-x);
+      // Thread the active trace record into the freshly-created magnitude so the
+      // recursive call nests under this op's Step 3 call (the new value has its own
+      // empty trace by default, which would otherwise leave the call step childless).
+      if (op) negX.trace = xV.trace;
+      const r = Value(`-${NumberValue.toString(negX, radix).stringValue()}`);
+      op?.log({ kind: 'return', hint: 'Step 3: return concatenated negative result.' }, r);
+      return r;
     }
+    op?.log({ kind: 'if', taken: false, hint: 'Step 3: x ≥ 0 — continue.' });
+    // 4. If x is +∞𝔽, return "Infinity".
     if (xV.isInfinity()) {
-      return Value('Infinity');
+      op?.log({ kind: 'if', taken: true, hint: 'Step 4: x is +∞ → return "Infinity".' });
+      const r = Value('Infinity');
+      op?.log({ kind: 'return', hint: 'Step 4: return "Infinity".' }, r);
+      return r;
     }
-    // TODO: implement properly, currently depends on host.
-    return Value(`${x.toString(radix)}`);
+    op?.log({ kind: 'if', taken: false, hint: 'Step 4: x is finite — continue.' });
+    // 5. Otherwise, x is a finite positive Number; return the String value consisting of the digits of the decimal representation of x.
+    //    (Host-delegated for non-decimal radix.)
+    const r = Value(`${x.toString(radix)}`);
+    op?.log({ kind: 'return', hint: 'Step 5: return host-formatted digit representation.' }, r);
+    return r;
   }
 
   static readonly unit = new NumberValue(1);
@@ -504,21 +911,32 @@ export class NumberValue extends PrimitiveValue {
 
 /** https://tc39.es/ecma262/#sec-numberbitwiseop */
 function NumberBitwiseOp(op: '&' | '|' | '^', x: NumberValue, y: NumberValue) {
+  const handle = x.trace.hasActiveOperation()
+    ? OperationHandle.begin(x.trace, 'NumberBitwiseOp', x, [`'${op}'`, OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+    : null;
   // 1. Let lnum be ! ToInt32(x).
+  handle?.log({ kind: 'call', hint: 'Step 1: Let lnum be ! ToInt32(x).' });
   const lnum = X(ToInt32(x));
   // 2. Let rnum be ! ToUint32(y).
+  handle?.log({ kind: 'call', hint: 'Step 2: Let rnum be ! ToUint32(y).' });
   const rnum = X(ToUint32(y));
   // 3. Return the result of applying the bitwise operator op to lnum and rnum. The result is a signed 32-bit integer.
+  let r: NumberValue;
   switch (op) {
     case '&':
-      return F(R(lnum) & R(rnum));
+      r = F(R(lnum) & R(rnum));
+      break;
     case '|':
-      return F(R(lnum) | R(rnum));
+      r = F(R(lnum) | R(rnum));
+      break;
     case '^':
-      return F(R(lnum) ^ R(rnum));
+      r = F(R(lnum) ^ R(rnum));
+      break;
     default:
       throw new OutOfRange('NumberBitwiseOp', op);
   }
+  handle?.log({ kind: 'return', hint: `Step 3: return lnum ${op} rnum (signed 32-bit integer).` }, r);
+  return r;
 }
 
 /** https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type */

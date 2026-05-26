@@ -364,6 +364,11 @@ export function* AbstractRelationalComparison(x: Value, y: Value, LeftFirst = tr
     // e. If Type(nx) is the same as Type(ny), return Type(nx)::lessThan(nx, ny).
     if (SameType(nx, ny)) {
       if (nx instanceof NumberValue) {
+        op.log({
+          kind: 'call',
+          hint: 'Step 4e: Return Number::lessThan(nx, ny).',
+          description: 'Both numerics are Numbers — delegate to Number::lessThan (NaN → undefined, signed-zero-aware).',
+        });
         const r = NumberValue.lessThan(nx, ny as NumberValue);
         op.log({
           kind: 'return',
@@ -817,6 +822,11 @@ export function IsStrictlyEqual(x: Value, y: Value) {
       description: 'Number comparison has special NaN rule: NaN !== NaN. Handled by Number::equal.',
     });
     // a. Return Number::equal(x, y).
+    op.log({
+      kind: 'call',
+      hint: 'Step 2a: Return Number::equal(x, y).',
+      description: 'Delegate numeric comparison to Number::equal (NaN-aware, signed-zero-aware).',
+    });
     const r = NumberValue.equal(x, y as NumberValue);
     op.log({
       kind: 'return',
