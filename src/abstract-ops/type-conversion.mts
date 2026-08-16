@@ -501,12 +501,12 @@ export function* ToNumber(argument: Value): ValueEvaluator<NumberValue> {
     op.log({
       kind: "if",
       hint: "Step 4: argument is not false — continue.",
-      description: "Not boolean — continue.",
+      description: "Not false, so the +0\u{1D53D} half of Step 4 does not apply.",
     });
     op.log({
       kind: "if",
       hint: "Step 5: argument is not true — continue.",
-      description: "Not boolean — continue.",
+      description: "Not true either — the argument is not a Boolean at all.",
     });
   }
 
@@ -1314,7 +1314,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 1: argument is not undefined — skip.",
-    description: "Continue to null check.",
+    description: "The argument is not undefined, so the first throwing case is cleared.",
   });
 
   if (argument === Value.null) {
@@ -1335,7 +1335,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 2: argument is not null — skip.",
-    description: "Continue to Boolean check.",
+    description: "Not null either — nothing here throws.",
   });
 
   if (argument instanceof BooleanValue) {
@@ -1360,7 +1360,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 3: argument is not Boolean — skip.",
-    description: "Continue to Number check.",
+    description: "Not a Boolean — no Boolean wrapper needed.",
   });
 
   if (argument instanceof NumberValue) {
@@ -1385,7 +1385,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 4: argument is not Number — skip.",
-    description: "Continue to String check.",
+    description: "Not a Number — no Number wrapper needed.",
   });
 
   if (argument instanceof JSStringValue) {
@@ -1407,7 +1407,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 5: argument is not String — skip.",
-    description: "Continue to Symbol check.",
+    description: "Not a String — no String wrapper needed.",
   });
 
   if (argument instanceof SymbolValue) {
@@ -1432,7 +1432,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 6: argument is not Symbol — skip.",
-    description: "Continue to BigInt check.",
+    description: "Not a Symbol — no Symbol wrapper needed.",
   });
 
   if (argument instanceof BigIntValue) {
@@ -1457,7 +1457,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
     kind: "if",
     taken: false,
     hint: "Step 7: argument is not BigInt — skip.",
-    description: "Continue to Object identity case.",
+    description: "Not a BigInt — no BigInt wrapper needed.",
   });
 
   Assert(argument instanceof ObjectValue);

@@ -464,7 +464,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: `Step 1: Type(x) is ${tx}, Type(y) is ${ty} — different types, continue.`,
-    description: 'Same-type fast path skipped — proceed through type-specific coercion rules.',
+    description: 'The two sides are different types, so strict comparison cannot decide this — one of the coercion rules below has to.',
   });
 
   // 2. If x is null and y is undefined, return true.
@@ -486,7 +486,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 2: not (x is null and y is undefined) — skip.',
-    description: 'Continue to symmetric null/undefined check.',
+    description: 'This is not the null == undefined pair, so that special rule does not fire.',
   });
 
   // 3. If x is undefined and y is null, return true.
@@ -508,7 +508,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 3: not (x is undefined and y is null) — skip.',
-    description: 'Continue to Number/String coercion rules.',
+    description: 'Not the mirrored undefined == null pair either.',
   });
 
   // 4. If Type(x) is Number and Type(y) is String, return the result of the comparison x == ! ToNumber(y).
@@ -532,7 +532,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 4: not (x is Number and y is String) — skip.',
-    description: 'Continue to symmetric String/Number case.',
+    description: 'Not a Number facing a String — no string-to-number coercion on the right side.',
   });
 
   // 5. If Type(x) is String and Type(y) is Number, return the result of the comparison ! ToNumber(x) == y.
@@ -556,7 +556,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 5: not (x is String and y is Number) — skip.',
-    description: 'Continue to BigInt/String case.',
+    description: 'Not a String facing a Number — the mirrored coercion does not apply either.',
   });
 
   // 6. If Type(x) is BigInt and Type(y) is String, then
@@ -604,7 +604,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 6: not (x is BigInt and y is String) — skip.',
-    description: 'Continue to symmetric String/BigInt case.',
+    description: 'Not a BigInt facing a String, so there is nothing to parse as a BigInt literal.',
   });
 
   // 7. If Type(x) is String and Type(y) is BigInt, return the result of the comparison y == x.
@@ -628,7 +628,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 7: not (x is String and y is BigInt) — skip.',
-    description: 'Continue to Boolean coercion.',
+    description: 'Not a String facing a BigInt — the mirrored parse rule does not apply.',
   });
 
   // 8. If Type(x) is Boolean, return the result of the comparison ! ToNumber(x) == y.
@@ -652,7 +652,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 8: x is not Boolean — skip.',
-    description: 'Continue to symmetric Boolean check for y.',
+    description: 'x is not a Boolean, so there is nothing to unwrap to 0/1 on the left.',
   });
 
   // 9. If Type(y) is Boolean, return the result of the comparison x == ! ToNumber(y).
@@ -676,7 +676,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 9: y is not Boolean — skip.',
-    description: 'Continue to Object-vs-primitive coercion cases.',
+    description: 'y is not a Boolean either — no 0/1 unwrapping on the right.',
   });
 
   // 10. If Type(x) is either String, Number, BigInt, or Symbol and Type(y) is Object, return the result of the comparison x == ToPrimitive(y).
@@ -700,7 +700,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 10: not (x is primitive and y is Object) — skip.',
-    description: 'Continue to symmetric Object-vs-primitive case.',
+    description: 'Not a primitive facing an Object — the right side does not need ToPrimitive.',
   });
 
   // 11. If Type(x) is Object and Type(y) is either String, Number, BigInt, or Symbol, return the result of the comparison ToPrimitive(x) == y.
@@ -724,7 +724,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 11: not (x is Object and y is primitive) — skip.',
-    description: 'Continue to cross-numeric BigInt/Number comparison.',
+    description: 'Not an Object facing a primitive — the left side does not need ToPrimitive.',
   });
 
   // 12. If Type(x) is BigInt and Type(y) is Number, or if Type(x) is Number and Type(y) is BigInt, then
@@ -771,7 +771,7 @@ export function* IsLooselyEqual(x: Value, y: Value): ValueEvaluator<BooleanValue
     kind: 'if',
     taken: false,
     hint: 'Step 12: not a BigInt/Number cross-numeric pair — skip.',
-    description: 'No coercion rule applies — fall through to Step 13.',
+    description: 'Not a BigInt against a Number — the last cross-numeric rule is out too.',
   });
 
   // 13. Return false.
@@ -810,7 +810,7 @@ export function IsStrictlyEqual(x: Value, y: Value) {
     kind: 'if',
     taken: false,
     hint: `Step 1: Type(x) is ${tx} and Type(y) is ${ty} — same type, continue.`,
-    description: 'Same-type operands — proceed to type-specific equality check.',
+    description: 'Both operands are the same type, so they can be compared directly.',
   });
 
   // 2. If x is a Number, then
@@ -839,7 +839,7 @@ export function IsStrictlyEqual(x: Value, y: Value) {
     kind: 'if',
     taken: false,
     hint: 'Step 2: x is not Number — skip.',
-    description: 'Continue to SameValueNonNumber.',
+    description: 'The operands are not Numbers, so no NaN or ±0 special cases apply.',
   });
 
   // 3. Return SameValueNonNumber(x, y).
