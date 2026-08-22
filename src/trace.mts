@@ -229,6 +229,10 @@ export class TraceRecord {
     return this.stack.length > 0;
   }
 
+  operationDepth(): number {
+    return this.stack.length;
+  }
+
   /**
    * Clear all trace data and reset counters
    */

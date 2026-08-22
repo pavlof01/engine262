@@ -1027,7 +1027,12 @@ export class BigIntValue extends PrimitiveValue {
 
   /** https://tc39.es/ecma262/#sec-numeric-types-bigint-add */
   static add(x: BigIntValue, y: BigIntValue) {
-    return Z(R(x) + R(y));
+    const op = x.trace.hasActiveOperation()
+      ? OperationHandle.begin(x.trace, 'BigInt::add', x, [OperationHandle.formatValue(x), OperationHandle.formatValue(y)])
+      : null;
+    const r = Z(R(x) + R(y));
+    op?.log({ kind: 'return', hint: 'Return: the BigInt value that represents the sum of x and y.' }, r);
+    return r;
   }
 
   /** https://tc39.es/ecma262/#sec-numeric-types-bigint-subtract */

@@ -1269,13 +1269,13 @@ export function* ToString(argument: Value): ValueEvaluator<JSStringValue> {
   if (argument instanceof ObjectValue) {
     op.log({
       kind: "call",
-      hint: 'Step 2g-i: Let primValue be ? ToPrimitive(argument, "string").',
+      hint: 'Step 10: Let primValue be ? ToPrimitive(argument, "string").',
       description: 'Reduce object to a primitive via the string-hinted protocol (toString() first, valueOf() fallback).',
     });
     const primValue = Q(yield* ToPrimitive(argument, "string"));
     op.log({
       kind: "call",
-      hint: "Step 2g-ii: Return ? ToString(primValue).",
+      hint: "Step 12: Return ? ToString(primValue).",
       description: "Recurse to convert the primitive (may now be number, boolean, etc.) to string.",
     });
     const result = Q(yield* ToString(primValue));
@@ -1468,7 +1468,7 @@ export function ToObject(argument: Value): ValueCompletion<ObjectValue> {
   });
   op.log({
     kind: "return",
-    hint: "Step 9: argument is already an Object — return as-is.",
+    hint: "Step 8: argument is already an Object — return as-is.",
     description: "Identity case: objects don't need boxing.",
   });
   return argument;
