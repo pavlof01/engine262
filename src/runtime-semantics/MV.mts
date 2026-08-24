@@ -15,29 +15,32 @@ export function MV_StringNumericLiteral(StringNumericLiteral: string, traceSourc
     result.trace = traceSource.trace;
     const op = OperationHandle.begin(result.trace, "StringToNumber", result, [`"${StringNumericLiteral}"`]);
 
-    op.log({ kind: "operation", hint: `Step 1: Let text be StringToCodePoints("${StringNumericLiteral}").` });
-    op.log({ kind: "operation", hint: `Step 2: Let literal be ParseText(text, |StringNumericLiteral|).` });
+    op.log({
+      kind: "operation",
+      hint: `Step 1: Let literal be ParseText("${StringNumericLiteral}", |StringNumericLiteral|).`,
+      description: "The string is parsed as a numeric literal, which is a grammar production — not the same grammar JavaScript source uses, so \"0x10\" parses but \"010\" is decimal.",
+    });
 
     if (isNaN(numericValue)) {
       op.log({
         kind: "if",
-        hint: `Step 3: literal is a List of errors — "${StringNumericLiteral}" cannot be parsed as a numeric literal.`,
+        hint: `Step 2: literal is a List of errors — "${StringNumericLiteral}" is not a numeric literal.`,
         taken: true,
+        description: "A string that does not parse becomes NaN here rather than throwing.",
       });
-      op.log({ kind: "return", hint: `Step 3: Return *NaN*.` }, result);
+      op.log({ kind: "return", hint: `Step 2: Return *NaN*.` }, result);
     } else {
       op.log({
         kind: "if",
-        hint: `Step 3: literal is not a List of errors — string parsed successfully.`,
+        hint: `Step 2: literal is not a List of errors — the string parsed.`,
         taken: false,
       });
-      op.log({ kind: "operation", hint: `Step 4: Let mv be the MV of literal = ${numericValue}.` });
-      const mvStr = isFinite(numericValue) ? String(numericValue) : numericValue > 0 ? "+∞" : "-∞";
+      const valueStr = isFinite(numericValue) ? String(numericValue) : numericValue > 0 ? "+∞" : "-∞";
       op.log({
-        kind: "assert",
-        hint: `Step 5: Assert: mv (${mvStr}) is a finite Mathematical value or +∞ or -∞.`,
-      });
-      op.log({ kind: "return", hint: `Step 6: Return 𝔽(mv) = ${mvStr}.` }, result);
+        kind: "return",
+        hint: `Step 3: Return the StringNumericValue of literal = ${valueStr}.`,
+        description: "StringNumericValue is the syntax-directed operation that turns the parsed literal into a Number.",
+      }, result);
     }
   }
 
