@@ -263,88 +263,102 @@ export function* OrdinaryToPrimitive(O: ObjectValue, hint: "string" | "number"):
   return surroundingAgent.Throw("TypeError", "ObjectToPrimitive");
 }
 
+/** Why `argument` is one of ToBoolean's seven falsy values, or `null` when it is not. */
+function falsyReason(argument: Value): string | null {
+  if (argument instanceof UndefinedValue) return "undefined is falsy — it stands for absence.";
+  if (argument instanceof NullValue) return "null is falsy — an intentional empty value.";
+  if (argument instanceof NumberValue) {
+    if (R(argument) === 0) return "±0 is falsy — no quantity at all. Every other Number is truthy.";
+    if (argument.isNaN()) return "NaN is falsy — not a real result. Every other Number is truthy.";
+    return null;
+  }
+  if (argument instanceof BigIntValue && R(argument) === 0n) {
+    return "0n is falsy — the BigInt mirror of ±0.";
+  }
+  if (argument instanceof JSStringValue && argument.stringValue().length === 0) {
+    return 'The empty String "" is falsy — the only falsy String there is.';
+  }
+  return null;
+}
+
+/** Why `argument` escapes Step 2 — what makes this kind of value truthy. */
+function truthyReason(argument: Value): string {
+  if (argument instanceof NumberValue) {
+    return "Any Number other than ±0 and NaN is truthy — negative numbers and Infinity included.";
+  }
+  if (argument instanceof JSStringValue) {
+    return 'Any non-empty String is truthy — including "0", "false" and " ".';
+  }
+  if (argument instanceof BigIntValue) return "Any non-zero BigInt is truthy.";
+  if (argument instanceof SymbolValue) {
+    return "Every Symbol is unique and non-empty — there is no falsy Symbol.";
+  }
+  return "All objects are truthy — even [], {} and new Boolean(false). Only primitives can be falsy.";
+}
+
 /** https://tc39.es/ecma262/#sec-toboolean */
 export function ToBoolean(argument: Value): BooleanValue {
   const op = OperationHandle.begin(argument.trace, "ToBoolean", argument);
-  if (argument instanceof UndefinedValue) {
+  const shown = OperationHandle.formatValue(argument);
+  // 1. If argument is a Boolean, return argument.
+  if (argument instanceof BooleanValue) {
     op.log({
-      kind: "return",
-      value: "false",
-      type: argument.type,
-      hint: "If argument is undefined, return false.",
-      description: "undefined is one of the falsy values — represents absence.",
+      kind: "if",
+      taken: true,
+      hint: `Step 1: argument is a Boolean (${shown}) — return it unchanged.`,
+      description: "Identity case: a Boolean is already the answer, so nothing is converted.",
     });
-    return Value.false;
-  } else if (argument instanceof NullValue) {
-    op.log({
-      kind: "return",
-      value: "false",
-      type: argument.type,
-      hint: "If argument is null, return false.",
-      description: "null is falsy — represents intentional empty value.",
-    });
-    return Value.false;
-  } else if (argument instanceof BooleanValue) {
-    op.log({
-      kind: "return",
-      value: argument === Value.true ? "true" : "false",
-      type: argument.type,
-      hint: "Argument is already boolean, return as-is.",
-      description: "Identity case: boolean stays boolean.",
-    });
+    op.log(
+      {
+        kind: "return",
+        hint: "Step 1: return argument.",
+        description: "Boolean stays Boolean.",
+      },
+      argument,
+    );
     return argument;
-  } else if (argument instanceof NumberValue) {
-    op.log({
-      kind: "if",
-      value: String(R(argument)),
-      type: argument.type,
-      hint: "If number is +0, -0, or NaN, return false; otherwise true.",
-      description: "Falsy numbers: ±0 (no quantity) and NaN (not a real result). All other numbers — positive, negative, Infinity — are truthy.",
-    });
-    if (R(argument) === 0 || argument.isNaN()) {
-      return Value.false;
-    }
-  } else if (argument instanceof JSStringValue) {
-    op.log({
-      kind: "if",
-      value: argument.stringValue(),
-      type: argument.type,
-      hint: "If string is empty, return false; otherwise true.",
-      description: 'Only the empty string "" is falsy. Note: "0", "false", and " " are all truthy.',
-    });
-    if (argument.stringValue().length === 0) {
-      return Value.false;
-    }
-  } else if (argument instanceof BigIntValue) {
-    op.log({
-      kind: "if",
-      value: String(R(argument)),
-      type: argument.type,
-      hint: "If BigInt is 0ℤ, return false; otherwise true.",
-      description: "Mirrors Number rules: only 0n is falsy, any non-zero BigInt is truthy.",
-    });
-    if (R(argument) === 0n) {
-      return Value.false;
-    }
-  } else if (argument instanceof SymbolValue) {
-    op.log({
-      kind: "return",
-      value: "true",
-      type: argument.type,
-      hint: "Symbol always converts to true.",
-      description: "Every Symbol is unique and non-empty — there is no falsy Symbol value.",
-    });
-    return Value.true;
-  } else if (argument instanceof ObjectValue) {
-    op.log({
-      kind: "return",
-      value: "true",
-      type: argument.type,
-      hint: "Object always converts to true.",
-      description: "All objects are truthy — even empty arrays [], empty objects {}, and `new Boolean(false)`. Only primitives can be falsy.",
-    });
-    return Value.true;
   }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 1: argument is not a Boolean — continue.",
+    description: `${argument.type} is not a Boolean, so the falsy-value check in Step 2 decides.`,
+  });
+  // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
+  const falsy = falsyReason(argument);
+  if (falsy !== null) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 2: argument is ${shown} — one of the falsy values.`,
+      description: falsy,
+    });
+    op.log(
+      {
+        kind: "return",
+        hint: "Step 2: return false.",
+        description: "One of the seven falsy values: undefined, null, +0, -0, NaN, 0n, \"\".",
+      },
+      Value.false,
+    );
+    return Value.false;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: `Step 2: argument (${shown}) is none of undefined, null, ±0, NaN, 0n or "" — continue.`,
+    description: truthyReason(argument),
+  });
+  // 3. NOTE: This step is replaced in section B.3.6.1 — only [[IsHTMLDDA]] objects, which this host never creates.
+  // 4. Return true.
+  op.log(
+    {
+      kind: "return",
+      hint: "Step 4: return true.",
+      description: "Whatever is not one of the seven falsy values is truthy.",
+    },
+    Value.true,
+  );
   return Value.true;
 }
 
@@ -1126,171 +1140,241 @@ export function* ToBigUint64(argument: Value): ValueEvaluator<BigIntValue> {
 /** https://tc39.es/ecma262/#sec-tostring */
 export function* ToString(argument: Value): ValueEvaluator<JSStringValue> {
   const op = OperationHandle.begin(argument.trace, "ToString", argument);
-
+  const shown = OperationHandle.formatValue(argument);
+  // 1. If argument is a String, return argument.
+  if (argument instanceof JSStringValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: `Step 1: argument is a String (${shown}) — return it unchanged.`,
+      description: "Identity case: a String is already the answer, so nothing is converted.",
+    });
+    op.log(
+      {
+        kind: "return",
+        hint: "Step 1: return argument.",
+        description: "String stays String.",
+      },
+      argument,
+    );
+    return argument;
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 1: argument is not a String — continue.",
+    description: `${argument.type} has to be converted.`,
+  });
+  // 2. If argument is a Symbol, throw a TypeError exception.
+  if (argument instanceof SymbolValue) {
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: "Step 2: argument is a Symbol — throw a TypeError.",
+      description:
+        "An implicit Symbol → String conversion would silently lose the Symbol's identity, so the spec refuses. Call String(sym) or sym.toString() explicitly instead.",
+    });
+    op.log({
+      kind: "throw",
+      hint: "Step 2: throw TypeError.",
+      description: "Cannot convert a Symbol value to a string.",
+    });
+    return surroundingAgent.Throw("TypeError", "CannotConvertSymbol", "string");
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 2: argument is not a Symbol — continue.",
+    description: "Only Symbols are refused outright; everything else has a string form.",
+  });
+  // 3. If argument is undefined, return "undefined".
   if (argument instanceof UndefinedValue) {
     const result = Value("undefined");
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: 'Step 3: argument is undefined — return "undefined".',
+      description: 'String(undefined) === "undefined": the literal spelling of the value.',
+    });
     op.log(
       {
         kind: "return",
-        hint: 'If argument is undefined, return "undefined".',
-        description: 'Stringify the literal text "undefined" — matches String(undefined) === "undefined".',
+        hint: 'Step 3: return "undefined".',
+        description: "The literal text of the value.",
       },
       result,
     );
     return result;
-  } else {
-    op.log({
-      kind: "if",
-      hint: 'If argument is undefined, return "undefined".',
-      description: "Not undefined — continue.",
-    });
   }
-
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 3: argument is not undefined — continue.",
+    description: "undefined would have become the text \"undefined\".",
+  });
+  // 4. If argument is null, return "null".
   if (argument instanceof NullValue) {
     const result = Value("null");
+    op.log({
+      kind: "if",
+      taken: true,
+      hint: 'Step 4: argument is null — return "null".',
+      description: 'String(null) === "null": the literal spelling of the value.',
+    });
     op.log(
       {
         kind: "return",
-        hint: 'If argument is null, return "null".',
-        description: 'String(null) === "null". Mirrors JSON-like serialization for these primitives.',
+        hint: 'Step 4: return "null".',
+        description: "The literal text of the value.",
       },
       result,
     );
     return result;
-  } else {
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 4: argument is not null — continue.",
+    description: 'null would have become the text "null".',
+  });
+  // 5. If argument is true, return "true".
+  if (argument === Value.true) {
+    const result = Value("true");
     op.log({
       kind: "if",
-      hint: 'If argument is null, return "null".',
-      description: "Not null — continue.",
+      taken: true,
+      hint: 'Step 5: argument is true — return "true".',
+      description: 'String(true) === "true".',
     });
-  }
-
-  if (argument instanceof BooleanValue) {
-    const boolStr = argument === Value.true ? "true" : "false";
-    const result = Value(boolStr);
     op.log(
       {
         kind: "return",
-        hint: `If argument is ${boolStr}, return "${boolStr}".`,
-        description: 'String(true) === "true", String(false) === "false".',
+        hint: 'Step 5: return "true".',
+        description: "The literal text of the value.",
       },
       result,
     );
     return result;
-  } else {
+  }
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 5: argument is not true — continue.",
+    description: 'true would have become the text "true".',
+  });
+  // 6. If argument is false, return "false".
+  if (argument === Value.false) {
+    const result = Value("false");
     op.log({
       kind: "if",
-      hint: 'If argument is boolean, return "true" or "false".',
-      description: "Not boolean — continue.",
+      taken: true,
+      hint: 'Step 6: argument is false — return "false".',
+      description: 'String(false) === "false".',
     });
+    op.log(
+      {
+        kind: "return",
+        hint: 'Step 6: return "false".',
+        description: "The literal text of the value.",
+      },
+      result,
+    );
+    return result;
   }
-
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 6: argument is not false — continue.",
+    description: 'false would have become the text "false".',
+  });
+  // 7. If argument is a Number, return Number::toString(argument, 10).
   if (argument instanceof NumberValue) {
     op.log({
-      kind: "call",
-      hint: `Return Number::toString(${R(argument)}, 10).`,
-      description: "Number → string uses base-10 by default; NaN, ±Infinity get their canonical strings.",
+      kind: "if",
+      taken: true,
+      hint: `Step 7: argument is a Number (${shown}) — return Number::toString(${shown}, 10).`,
+      description:
+        'Base 10 by default; NaN and ±Infinity get their canonical spellings, and -0 prints as "0".',
     });
     const result = X(NumberValue.toString(argument, 10));
     op.log(
       {
         kind: "return",
-        hint: `Number::toString(${R(argument)}) = "${result.stringValue()}".`,
-        description: "Canonical decimal representation of the number.",
+        hint: `Step 7: Number::toString(${shown}, 10) = "${result.stringValue()}".`,
+        description: "The shortest decimal string that reads back as the same Number.",
       },
       result,
     );
     return result;
-  } else {
-    op.log({
-      kind: "if",
-      hint: "If argument is number, convert using Number::toString.",
-      description: "Not a number — continue.",
-    });
   }
-
-  if (argument instanceof JSStringValue) {
-    op.log(
-      {
-        kind: "return",
-        hint: "Argument is already a string, return as-is.",
-        description: "Identity case: string stays string.",
-      },
-      argument,
-    );
-    return argument;
-  } else {
-    op.log({
-      kind: "if",
-      hint: "If argument is string, return as-is.",
-      description: "Not a string — continue.",
-    });
-  }
-
-  if (argument instanceof SymbolValue) {
-    op.log({
-      kind: "throw",
-      hint: "Cannot convert Symbol to String - throw TypeError.",
-      description: "Implicit Symbol → String would silently lose identity. Use String(sym) or sym.toString() explicitly.",
-    });
-    return surroundingAgent.Throw("TypeError", "CannotConvertSymbol", "string");
-  } else {
-    op.log({
-      kind: "if",
-      hint: "If argument is Symbol, throw TypeError.",
-      description: "Not a Symbol — continue.",
-    });
-  }
-
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 7: argument is not a Number — continue.",
+    description: "A Number would have been printed in base 10.",
+  });
+  // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
   if (argument instanceof BigIntValue) {
     op.log({
-      kind: "operation",
-      hint: `Convert BigInt ${R(argument)} to string.`,
-      description: "BigInt → string is base-10 by default. Note: no 'n' suffix in the string form.",
+      kind: "if",
+      taken: true,
+      hint: `Step 8: argument is a BigInt (${shown}) — return BigInt::toString(${shown}, 10).`,
+      description: "Decimal digits only — the n suffix belongs to the literal syntax, not the string.",
     });
     const result = X(BigIntValue.toString(argument, 10));
     op.log(
       {
         kind: "return",
-        hint: `BigInt::toString(${R(argument)}) = "${result.stringValue()}".`,
-        description: "Decimal representation of the BigInt.",
-      },
-      result,
-    );
-    return result;
-  } else {
-    op.log({
-      kind: "if",
-      hint: "If argument is BigInt, convert using BigInt::toString.",
-      description: "Not a BigInt — only Object remains.",
-    });
-  }
-
-  if (argument instanceof ObjectValue) {
-    op.log({
-      kind: "call",
-      hint: 'Step 10: Let primValue be ? ToPrimitive(argument, "string").',
-      description: 'Reduce object to a primitive via the string-hinted protocol (toString() first, valueOf() fallback).',
-    });
-    const primValue = Q(yield* ToPrimitive(argument, "string"));
-    op.log({
-      kind: "call",
-      hint: "Step 12: Return ? ToString(primValue).",
-      description: "Recurse to convert the primitive (may now be number, boolean, etc.) to string.",
-    });
-    const result = Q(yield* ToString(primValue));
-    op.log(
-      {
-        kind: "return",
-        hint: `ToString returned "${result.stringValue()}".`,
-        description: "Final string for the original object.",
+        hint: `Step 8: BigInt::toString(${shown}, 10) = "${result.stringValue()}".`,
+        description: "The decimal representation of the BigInt.",
       },
       result,
     );
     return result;
   }
-
-  throw new OutOfRange("ToString", { argument });
+  op.log({
+    kind: "if",
+    taken: false,
+    hint: "Step 8: argument is not a BigInt — only an Object remains.",
+    description: "Every primitive has been handled, so this must be an object.",
+  });
+  // 9. Assert: argument is an Object.
+  Assert(argument instanceof ObjectValue);
+  op.log({
+    kind: "assert",
+    hint: "Step 9: Assert — argument is an Object.",
+    description: "Sanity check: all seven primitive types were dealt with above.",
+  });
+  // 10. Let primValue be ? ToPrimitive(argument, string).
+  op.log({
+    kind: "call",
+    hint: 'Step 10: Let primValue be ? ToPrimitive(argument, "string").',
+    description:
+      "Reduce the object to a primitive with the string hint: toString() is tried first, valueOf() second.",
+  });
+  const primValue = Q(yield* ToPrimitive(argument, "string"));
+  // 11. Assert: primValue is not an Object.
+  op.log({
+    kind: "assert",
+    hint: "Step 11: Assert — primValue is not an Object.",
+    description: "ToPrimitive either returns a primitive or throws, so the recursion below always ends.",
+  });
+  // 12. Return ? ToString(primValue).
+  op.log({
+    kind: "call",
+    hint: "Step 12: Return ? ToString(primValue).",
+    description: "Convert the primitive ToPrimitive produced — it is now one of the cases above.",
+  });
+  const result = Q(yield* ToString(primValue));
+  op.log(
+    {
+      kind: "return",
+      hint: `Step 12: ToString(primValue) = "${result.stringValue()}".`,
+      description: "The final string for the original object.",
+    },
+    result,
+  );
+  return result;
 }
 
 /** https://tc39.es/ecma262/#sec-toobject */
